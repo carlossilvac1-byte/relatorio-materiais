@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.0.0',
+    versao: '1.0.1',
     logoOficialNoPacote: true
   },
 
@@ -38,7 +38,7 @@ const CONFIG = {
    * NUNCA coloque aqui a chave service_role.
    * ----------------------------------------------------------------- */
   supabase: {
-    url: 'https://SEUPROJETO.supabase.co',
+    url: 'https://tpciuxhgzkzvonzofmhs.supabase.co',
     anonKey: 'COLOQUE-AQUI-A-CHAVE-ANON',
     tabelaUsuarios: 'usuarios',
     tabelaRelatorios: 'relatorios',

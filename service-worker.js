@@ -10,7 +10,7 @@
  * altere VERSAO abaixo — é o que dispara a limpeza dos caches antigos.
  * ===================================================================== */
 
-const VERSAO = 'v1.0.0';
+const VERSAO = 'v1.0.1';
 const CACHE = 'rf-materiais-' + VERSAO;
 const CACHE_MAPA = 'rf-materiais-mapa-v1';      // não muda com a versão: preserva as imagens
 const LIMITE_MAPA = 1500;                      // ~25 MB no máximo
