@@ -1,0 +1,135 @@
+/* =====================================================================
+ * materiais.css — componentes próprios do Relatório Fotográfico
+ * ---------------------------------------------------------------------
+ * Complementa o styles.css (identidade EDP, idêntico ao app de
+ * Inspeções). Aqui ficam apenas: tipo Recebimento / Saída, os 6 espaços
+ * de foto, o bloco da não conformidade, o quadro do GPS ao vivo, os
+ * indicadores da lista e os selos de tipo.
+ * ===================================================================== */
+
+:root {
+  --receb: #1F7A8C;
+  --receb-claro: #E6F3F6;
+  --saida: #B26A00;
+  --saida-claro: #FFF3E0;
+}
+
+/* ---------- Cabeçalho do formulário ---------- */
+.rf-titulo-form { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.rf-titulo-form h1 { margin: 0; }
+#txt-numero { font-family: Consolas, "Courier New", monospace; font-size: 12px; letter-spacing: .2px; }
+#txt-numero:empty { display: none; }
+
+/* Dois campos lado a lado (empilham no celular estreito) */
+.rf-duas { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+@media (max-width: 420px) { .rf-duas { grid-template-columns: 1fr; } }
+
+/* ---------- Tipo: Recebimento / Saída ---------- */
+.rf-tipo .opcao { font-weight: 700; }
+.rf-tipo .opcao-receb.escolhida { border-color: var(--receb); background: var(--receb-claro); color: var(--receb); }
+.rf-tipo .opcao-saida.escolhida { border-color: var(--saida); background: var(--saida-claro); color: var(--saida); }
+#campo-tipo.invalido .radio-grande .opcao { border-color: var(--nao-conforme); }
+#cartao-dados[data-tipo="Recebimento"] .secao-num { background: var(--receb); color: #fff; }
+#cartao-dados[data-tipo="Saída"] .secao-num { background: var(--saida); color: #fff; }
+
+/* ---------- 6 espaços de foto ---------- */
+.rf-slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (min-width: 760px) { .rf-slots { grid-template-columns: repeat(3, 1fr); } }
+.rf-slot { display: flex; flex-direction: column; border: 1px solid var(--borda); border-radius: 12px; overflow: hidden; background: #fff; }
+.rf-slot.cheio { border-color: #BFDCD6; }
+.rf-slot textarea {
+  border: 0; border-top: 1px solid var(--borda); border-radius: 0; min-height: 58px; font-size: 14px;
+  padding: 8px 10px; resize: vertical; background: #FBFCFD; width: 100%; font-family: inherit;
+}
+.rf-slot textarea:focus { outline: 2px solid var(--primaria); outline-offset: -2px; background: #fff; }
+.rf-slot textarea:disabled { background: #F4F7F9; color: #9AA6B0; }
+.rf-slot-num {
+  position: absolute; left: 8px; top: 8px; z-index: 2; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 13px;
+  display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #fff; background: rgba(26,31,46,.78);
+}
+.rf-slot-img { position: relative; aspect-ratio: 4 / 3; background: #E3E9ED; }
+.rf-slot-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rf-slot-x {
+  position: absolute; right: 8px; top: 8px; width: 34px; height: 34px; border-radius: 50%; border: 0; cursor: pointer;
+  background: rgba(198,40,40,.92); color: #fff; font-size: 16px; font-weight: 700; display: grid; place-items: center;
+}
+.rf-slot-trocar { position: absolute; left: 0; right: 0; bottom: 0; padding: 6px; display: flex; justify-content: flex-end;
+  background: linear-gradient(transparent, rgba(0,0,0,.45)); }
+.rf-slot-trocar button { border: 0; border-radius: 8px; padding: 6px 12px; min-height: 34px; font-weight: 700; font-size: 13px;
+  background: rgba(255,255,255,.92); color: var(--texto); cursor: pointer; }
+.rf-slot-vazio {
+  position: relative; aspect-ratio: 4 / 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: repeating-linear-gradient(45deg, #F6F9FB, #F6F9FB 10px, #F1F5F8 10px, #F1F5F8 20px);
+  border-bottom: 1px dashed #CBD6DE; padding: 10px;
+}
+.rf-slot-vazio .rf-slot-num { background: #B8C5CF; }
+.rf-slot-vazio svg { width: 34px; height: 34px; fill: none; stroke: #8FA0AD; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.rf-slot-bts { display: grid; grid-template-columns: 1fr; gap: 6px; width: 100%; max-width: 170px; }
+.rf-slot-bts .btn { min-height: 38px; font-size: 13.5px; padding: 6px 8px; }
+@media (min-width: 420px) { .rf-slot-bts { grid-template-columns: 1fr 1fr; max-width: 230px; } }
+
+/* ---------- Não conformidade ---------- */
+#cartao-nc.com-nc { border-color: #F0BDBD; box-shadow: 0 0 0 1px #F0BDBD inset, var(--sombra-cartao); }
+#cartao-nc.com-nc .secao-num { background: var(--nao-conforme); color: #fff; }
+.rf-bloco-nc { border-top: 1px dashed #F0BDBD; padding-top: 12px; margin-top: 4px; }
+.rf-bloco-nc textarea { border-color: #F0BDBD; }
+.rf-grade-nc .foto-item { border-color: #F0BDBD; }
+.rf-grade-nc .foto-item img { height: 120px; }
+
+/* ---------- GPS ao vivo ---------- */
+.rf-gps { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--borda); border-radius: 12px; background: #F6F9FB; flex-wrap: wrap; }
+.rf-gps-ponto { width: 14px; height: 14px; border-radius: 50%; background: #9AA6B0; flex: none; position: relative; }
+.rf-gps-txt { flex: 1; min-width: 180px; line-height: 1.25; }
+.rf-gps-txt b { display: block; font-size: 15px; }
+.rf-gps-txt small { display: block; color: var(--texto-apoio); font-size: 13px; word-break: break-word; }
+.rf-gps .btn { min-height: 40px; font-size: 13.5px; padding: 6px 12px; }
+.rf-gps.vivo { border-color: #BFE3D9; background: #ECF7F4; }
+.rf-gps.vivo .rf-gps-ponto { background: #1F9E8F; }
+.rf-gps.vivo .rf-gps-ponto::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid #1F9E8F;
+  animation: rf-pulso 1.6s ease-out infinite; }
+.rf-gps.vivo b { color: #137A6E; }
+.rf-gps.buscando .rf-gps-ponto { background: var(--pendente); animation: rf-pisca 1s ease-in-out infinite; }
+.rf-gps.fixo .rf-gps-ponto { background: var(--azul-marinho); }
+.rf-gps.erro { border-color: #F3D591; background: #FFF8E6; }
+.rf-gps.erro .rf-gps-ponto { background: #B57F00; }
+@keyframes rf-pulso { from { transform: scale(.6); opacity: 1; } to { transform: scale(1.8); opacity: 0; } }
+@keyframes rf-pisca { 50% { opacity: .35; } }
+.pino-mapa.ao-vivo span { box-shadow: 0 0 0 4px rgba(31,158,143,.25); }
+@media (prefers-reduced-motion: reduce) {
+  .rf-gps.vivo .rf-gps-ponto::after, .rf-gps.buscando .rf-gps-ponto { animation: none; }
+}
+
+/* ---------- Boas-vindas: dois botões de tipo ---------- */
+.bv-tipos { display: grid; gap: 10px; }
+body.modo-publico .cartao-vidro .btn-iniciar.bv-saida { background: linear-gradient(135deg, #C97A06, #E39A1B); border-color: transparent; }
+
+/* ---------- Lista ---------- */
+.rf-titulo-hist { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rf-titulo-hist h1 { margin: 0; }
+.rf-btn-excel { min-height: 40px; padding: 6px 14px; font-size: 14px; flex: none; }
+.rf-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+@media (max-width: 420px) { .rf-kpis { grid-template-columns: repeat(2, 1fr); } }
+.rf-kpi { border: 1px solid var(--borda); border-top: 3px solid var(--primaria); border-radius: 12px; padding: 10px 8px; text-align: center; background: #fff; }
+.rf-kpi b { display: block; font-size: 24px; line-height: 1.1; color: var(--texto); }
+.rf-kpi span { font-size: 12px; color: var(--texto-apoio); font-weight: 600; }
+.rf-kpi.k-receb { border-top-color: var(--receb); } .rf-kpi.k-receb b { color: var(--receb); }
+.rf-kpi.k-saida { border-top-color: var(--saida); } .rf-kpi.k-saida b { color: var(--saida); }
+.rf-kpi.k-nc { border-top-color: var(--nao-conforme); } .rf-kpi.k-nc b { color: var(--nao-conforme); }
+
+.selo-receb { background: var(--receb-claro); color: var(--receb); border: 1px solid #B7DCE4; }
+.selo-saida { background: var(--saida-claro); color: var(--saida); border: 1px solid #F2D2A0; }
+.rf-selos { display: inline-flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.rf-item.t-receb { border-left-color: var(--receb); }
+.rf-item.t-saida { border-left-color: var(--saida); }
+.rf-item.com-nc { border-left-color: var(--nao-conforme); }
+.rf-item .rf-desc { color: var(--texto); }
+.rf-nfotos { font-size: 12.5px; color: var(--texto-apoio); margin-left: 4px; white-space: nowrap; }
+.rf-num { margin-top: 6px; font-family: Consolas, "Courier New", monospace; font-size: 12px; color: #7A8894; }
+
+/* ---------- Detalhe ---------- */
+.rf-det-cab { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+#detalhe-conteudo h1 { font-family: Consolas, "Courier New", monospace; font-size: 20px; margin: 8px 0 10px; word-break: break-all; }
+.rf-pre { white-space: pre-line; }
+.rf-galeria figcaption { white-space: normal; }
+.rf-auditoria { margin-top: 18px; }
+.rf-auditoria summary { cursor: pointer; font-weight: 700; padding: 8px 0; }

@@ -1,0 +1,24 @@
+{
+  "name": "Relatório Fotográfico de Materiais | EDP TRANSMISSÃO CONSTRUÇÃO",
+  "short_name": "RF Materiais",
+  "description": "Relatório fotográfico de recebimento e saída de materiais — EDP TRANSMISSÃO CONSTRUÇÃO. Funciona sem internet.",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0B1B2D",
+  "theme_color": "#0B1B2D",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "icons/favicon-64.png", "sizes": "64x64", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Novo relatório", "short_name": "Novo", "url": "./index.html",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
