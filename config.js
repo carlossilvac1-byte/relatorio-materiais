@@ -39,7 +39,7 @@ const CONFIG = {
    * ----------------------------------------------------------------- */
   supabase: {
     url: 'https://tpciuxhgzkzvonzofmhs.supabase.co',
-    anonKey: 'COLOQUE-AQUI-A-CHAVE-ANON',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRwY2l1eGhnemt6dm9uem9mbWhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0NTIyNzgsImV4cCI6MjEwODAyODI3OH0.gPXBOptd9IPmvvCVWILv6lQ9c6RSX3seLzAZCbeC53k',
     tabelaUsuarios: 'usuarios',
     tabelaRelatorios: 'relatorios',
     bucketFotos: 'fotos-materiais'
