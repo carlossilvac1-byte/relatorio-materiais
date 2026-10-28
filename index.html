@@ -319,17 +319,6 @@
           <span class="apoio pequena">Vem do seu cadastro e não é editável.</span>
         </div>
 
-        <label class="campo">
-          <span class="rotulo">Nome do projeto <b class="obrig">*</b></span>
-          <select id="f-projeto"></select>
-          <span class="erro" id="e-projeto"></span>
-        </label>
-        <label class="campo" id="campo-projeto-outro" hidden>
-          <span class="rotulo">Informe o projeto <b class="obrig">*</b></span>
-          <input type="text" id="f-projeto-outro" placeholder="Nome do projeto">
-          <span class="erro" id="e-projeto-outro"></span>
-        </label>
-
         <div class="rf-duas">
           <label class="campo">
             <span class="rotulo">Lote <b class="obrig">*</b></span>
@@ -343,6 +332,13 @@
             <span class="erro" id="e-data"></span>
           </label>
         </div>
+
+        <label class="campo">
+          <span class="rotulo">Nome do projeto <b class="obrig">*</b></span>
+          <select id="f-projeto" disabled><option value="">Selecione o lote primeiro</option></select>
+          <span class="apoio pequena">Lista padronizada do lote. A numeração do relatório é sequencial por projeto (001, 002…).</span>
+          <span class="erro" id="e-projeto"></span>
+        </label>
 
         <div class="campo" id="campo-tipo">
           <span class="rotulo">Tipo <b class="obrig">*</b></span>
@@ -498,6 +494,8 @@
           <label class="campo"><span class="rotulo">Até</span><input type="date" id="h-ate"></label>
           <label class="campo"><span class="rotulo">Lote</span>
             <select id="h-lote"><option value="">Todos</option></select></label>
+          <label class="campo"><span class="rotulo">Projeto</span>
+            <select id="h-projeto"><option value="">Todos</option></select></label>
           <label class="campo campo-inline">
             <input type="checkbox" id="h-excluidos"><span>Mostrar excluídos</span>
           </label>
@@ -527,6 +525,9 @@
       <button type="button" class="btn btn-secundario" id="btn-editar-detalhe">Editar</button>
       <button type="button" class="btn btn-primario" id="btn-pdf-detalhe">Gerar PDF</button>
     </div>
+    <button type="button" class="btn btn-bloco rf-btn-whats" id="btn-img-detalhe">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.6a8.4 8.4 0 0 1-12.4 7.4L3.5 20.5l1.6-4.4A8.4 8.4 0 1 1 20.5 11.6z"/><path d="M9 8.6c.2-.5.6-.5.9-.5h.5c.2 0 .4.1.5.4l.7 1.6c.1.2 0 .5-.1.6l-.5.6c-.1.2-.1.4 0 .5.6 1 1.4 1.8 2.4 2.3.2.1.4.1.5-.1l.6-.6c.2-.2.4-.2.6-.1l1.6.8c.3.1.4.3.4.5v.5c0 .5-.4 1-1 1.2-.9.2-2.4 0-4.3-1.5-1.8-1.4-2.8-3.1-3-4.1-.2-.9.1-1.6.6-2.1z"/></svg>
+      Enviar como imagem (WhatsApp)</button>
   </section>
 
   <!-- ===================================================================
@@ -726,6 +727,22 @@
   </div>
 </div>
 
+<!-- Imagem do relatório (página única) para WhatsApp / galeria -->
+<div class="modal" id="modal-imagem" hidden role="dialog" aria-modal="true" aria-labelledby="img-titulo">
+  <div class="modal-caixa caixa-imagem">
+    <h3 id="img-titulo">Imagem do relatório</h3>
+    <p class="apoio pequena" id="img-nome"></p>
+    <div class="img-previa"><img id="img-previa" alt="Prévia da imagem do relatório"></div>
+    <div class="arq-botoes">
+      <button type="button" class="btn btn-bloco rf-btn-whats" id="img-whats">Enviar no WhatsApp</button>
+      <button type="button" class="btn btn-secundario btn-bloco" id="img-salvar">Salvar na galeria</button>
+      <button type="button" class="btn btn-secundario btn-bloco" id="img-copiar" hidden>Copiar imagem (colar no WhatsApp Web)</button>
+      <button type="button" class="btn btn-neutro btn-bloco" id="img-fechar">Fechar</button>
+    </div>
+    <p class="apoio pequena" id="img-dica"></p>
+  </div>
+</div>
+
 <!-- Confirmação própria (confirm() é bloqueado em PWA no iOS) -->
 <div class="modal" id="modal" hidden>
   <div class="modal-caixa">
@@ -754,6 +771,7 @@
 <script src="leaflet.js"></script>
 <script src="mapa.js"></script>
 <script src="pdf.js"></script>
+<script src="imagem.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

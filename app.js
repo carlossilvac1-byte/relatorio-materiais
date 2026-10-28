@@ -574,18 +574,25 @@ const APP = (function () {
   /* ===================================================================
    * FORMULÁRIO DO RELATÓRIO
    * =================================================================== */
-  function montarProjetos(valorAtual, outroAtual) {
-    const lista = (CONFIG.projetos || []).slice();
-    preencherSelect($('#f-projeto'), lista.concat(['Outro']), lista.length ? null : 'Selecione…');
-    if (valorAtual && lista.indexOf(valorAtual) === -1 && valorAtual !== 'Outro') {
-      // Projeto recebido da base que não está no config: entra como "Outro"
-      $('#f-projeto').value = 'Outro';
-      $('#f-projeto-outro').value = valorAtual;
-    } else {
-      $('#f-projeto').value = valorAtual || lista[0] || '';
-      $('#f-projeto-outro').value = outroAtual || '';
-    }
-    $('#campo-projeto-outro').hidden = $('#f-projeto').value !== 'Outro';
+  /**
+   * Projetos padronizados do lote escolhido (lista fechada do config.js).
+   * Lote com um único projeto já vem preenchido. Um relatório antigo com
+   * nome fora da lista mantém o nome dele como opção, para não se perder.
+   */
+  function montarProjetos(valorAtual) {
+    const lote = $('#f-lote').value;
+    const lista = CONFIG.listarProjetos(lote);
+    const sel = $('#f-projeto');
+    const opcoes = lista.slice();
+    // Nome antigo fora da lista só fica como opção para o próprio relatório em edição
+    const original = estado.registro && !estado.ehNovo ? DB.nomeProjeto(estado.registro) : null;
+    if (valorAtual && opcoes.indexOf(valorAtual) === -1 && valorAtual === original && estado.registro.lote === lote) opcoes.push(valorAtual);
+    preencherSelect(sel, opcoes,
+      !lote ? 'Selecione o lote primeiro' : (lista.length ? 'Selecione…' : 'Nenhum projeto cadastrado para o lote'),
+      valorAtual && opcoes.indexOf(valorAtual) !== -1 ? valorAtual : '');
+    if (!sel.value && lista.length === 1) sel.value = lista[0];
+    sel.disabled = !lote;
+    atualizarNumero();
   }
 
   function montarLotes(valorAtual) {
@@ -620,7 +627,7 @@ const APP = (function () {
     if (canteiros.length === 1 && !valor) sel.value = canteiros[0];
     if (canteiroOutro !== undefined) $('#f-canteiro-outro').value = canteiroOutro || '';
     $('#campo-canteiro-outro').hidden = sel.value !== 'Outro';
-    atualizarNumero();
+    montarProjetos($('#f-projeto').value);
   }
 
   function tipoEscolhido() {
@@ -659,10 +666,16 @@ const APP = (function () {
     if (nc !== 'Sim') marcarErro('f-descricao-nc', null);
   }
 
+  /** Selo do número no topo do formulário. */
   function atualizarNumero() {
-    if (!estado.registro) return;
-    const tmp = Object.assign({}, estado.registro, { lote: $('#f-lote').value, dataRelatorio: $('#f-data').value });
-    $('#txt-numero').textContent = DB.numeroRelatorio(tmp);
+    const r = estado.registro;
+    if (!r) return;
+    const proj = $('#f-projeto').value;
+    const mesmoProjeto = proj && proj === DB.nomeProjeto(r);
+    const el = $('#txt-numero');
+    if (r.seq && mesmoProjeto) { el.textContent = 'Nº ' + DB.seqExibicao(r) + ' · ' + DB.numeroRelatorio(r); return; }
+    if (!proj) { el.textContent = ''; return; }
+    el.textContent = AUTH.modoLocal() ? 'Nº definido ao salvar' : 'Nº definido no envio (RF-' + CONFIG.siglaProjeto(proj) + '-…)';
   }
 
   async function atualizarSugestoes() {
@@ -675,11 +688,11 @@ const APP = (function () {
     const p = AUTH.perfil();
     $('#txt-responsavel').textContent = reg.responsavel || (p ? p.nome : '—');
     $('#txt-funcao').textContent = reg.funcaoResponsavel || (p ? p.funcao : '');
-    montarProjetos(reg.projeto, reg.projetoOutro);
     $('#f-data').max = hojeISO();
     $('#f-data').value = reg.dataRelatorio;
     montarLotes(reg.lote);
     aoMudarLote(reg.canteiro, reg.canteiroOutro);
+    montarProjetos(DB.nomeProjeto(reg));
     $$('input[name=tipo]').forEach(x => { x.checked = (x.value === reg.tipo); });
     aplicarTipo();
     $('#f-nf').value = reg.nf || '';
@@ -764,8 +777,11 @@ const APP = (function () {
     limparErros('#form-relatorio');
     const erros = [];
     const projeto = $('#f-projeto').value;
+    const original = estado.registro && !estado.ehNovo ? DB.nomeProjeto(estado.registro) : null;
     if (!projeto) { marcarErro('f-projeto', 'Selecione o projeto.'); erros.push('Projeto'); }
-    if (projeto === 'Outro' && !$('#f-projeto-outro').value.trim()) { marcarErro('f-projeto-outro', 'Informe o nome do projeto.'); erros.push('Projeto (Outro)'); }
+    else if (CONFIG.listarProjetos($('#f-lote').value).indexOf(projeto) === -1 && projeto !== original) {
+      marcarErro('f-projeto', 'Projeto não pertence ao lote escolhido.'); erros.push('Projeto do lote');
+    }
 
     const lote = $('#f-lote').value;
     if (!lote) { marcarErro('f-lote', 'Selecione o lote.'); erros.push('Lote'); }
@@ -807,7 +823,7 @@ const APP = (function () {
     r.funcaoResponsavel = r.funcaoResponsavel || (p ? p.funcao : '');
     r.emailResponsavel = r.emailResponsavel || (p ? p.email : '');
     r.projeto = $('#f-projeto').value;
-    r.projetoOutro = r.projeto === 'Outro' ? $('#f-projeto-outro').value.trim() : '';
+    r.projetoOutro = '';
     r.lote = $('#f-lote').value;
     r.dataRelatorio = $('#f-data').value;
     r.tipo = tipoEscolhido();
@@ -842,7 +858,7 @@ const APP = (function () {
       await DB.salvarRelatorio(r);
       estado.salvo = true;
       const n = await DB.contarFotos(r.id);
-      aviso('Relatório ' + r.numero + ' salvo no aparelho com ' + n.total + ' foto(s)' +
+      aviso('Relatório ' + (r.numero || '(nº definido no envio)') + ' salvo no aparelho com ' + n.total + ' foto(s)' +
             (SYNC.ativo() ? (navigator.onLine ? ' e enviado para a base central.' : '. Será enviado quando houver internet.') : '.'),
             'sucesso', 7);
       sincronizarEmSegundoPlano();
@@ -1080,6 +1096,7 @@ const APP = (function () {
       de: $('#h-de').value || null,
       ate: $('#h-ate').value || null,
       lote: $('#h-lote').value || null,
+      projeto: $('#h-projeto').value || null,
       texto: $('#h-texto').value || null,
       incluirExcluidos: $('#h-excluidos').checked
     };
@@ -1095,6 +1112,7 @@ const APP = (function () {
     const p = [];
     if (f.de || f.ate) p.push('Período ' + (f.de ? dataBR(f.de) : 'início') + ' a ' + (f.ate ? dataBR(f.ate) : 'hoje'));
     if (f.lote) p.push('Lote ' + f.lote);
+    if (f.projeto) p.push(f.projeto);
     if (estado.chip === 'NC') p.push('Somente com NC');
     else if (estado.chip) p.push('Tipo ' + estado.chip);
     if (f.texto) p.push('Busca "' + f.texto + '"');
@@ -1106,8 +1124,11 @@ const APP = (function () {
   }
 
   async function carregarHistorico() {
-    const vL = $('#h-lote').value;
+    const vL = $('#h-lote').value, vP = $('#h-projeto').value;
     preencherSelect($('#h-lote'), AUTH.lotes(), 'Todos', vL);
+    const projs = [];
+    (vL ? [vL] : AUTH.lotes()).forEach(l => CONFIG.listarProjetos(l).forEach(n => { if (projs.indexOf(n) === -1) projs.push(n); }));
+    preencherSelect($('#h-projeto'), projs, 'Todos', projs.indexOf(vP) !== -1 ? vP : '');
     const f = filtrosAtuais();
     const base = await DB.listarRelatorios(f);
     const ativos = base.filter(r => !r.excluido);
@@ -1148,7 +1169,7 @@ const APP = (function () {
                      : '<span class="selo selo-recebida">' + escapar(r.responsavel || 'Equipe') + '</span>';
       div.innerHTML =
         '<div class="topo">' +
-          '<span class="data">' + dataBR(r.dataRelatorio) + ' • ' + escapar(r.lote) + '</span>' +
+          '<span class="data"><span class="rf-nseq">Nº ' + DB.seqExibicao(r) + '</span> ' + dataBR(r.dataRelatorio) + ' • ' + escapar(r.lote) + '</span>' +
           '<span class="rf-selos"><span class="selo ' + (r.tipo === 'Saída' ? 'selo-saida' : 'selo-receb') + '">' + escapar(r.tipo).toUpperCase() + '</span>' + status + '</span>' +
         '</div>' +
         '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
@@ -1161,11 +1182,12 @@ const APP = (function () {
           ' <span class="rf-nfotos">' + qtd.gerais + ' foto(s)' + (qtd.nc ? ' + ' + qtd.nc + ' da NC' : '') + '</span>' +
           (r.excluido ? ' <span class="selo selo-nc">EXCLUÍDO</span>' : '') +
         '</div>' +
-        '<div class="rf-num">' + escapar(r.numero || DB.numeroRelatorio(r)) + '</div>' +
+        '<div class="rf-num">' + escapar(DB.numeroExibicao(r)) + ' • ' + escapar(DB.nomeProjeto(r)) + '</div>' +
         '<div class="acoes-item">' +
           '<button type="button" class="btn btn-secundario" data-acao="ver">Ver</button>' +
           (meu && !r.excluido ? '<button type="button" class="btn btn-neutro" data-acao="editar">Editar</button>' : '') +
           '<button type="button" class="btn btn-neutro" data-acao="pdf">PDF</button>' +
+          '<button type="button" class="btn btn-neutro rf-acao-img" data-acao="imagem">Imagem</button>' +
           (!meu ? '' : r.excluido
             ? '<button type="button" class="btn btn-neutro" data-acao="restaurar">Restaurar</button>'
             : '<button type="button" class="btn btn-neutro" data-acao="excluir">Excluir</button>') +
@@ -1178,6 +1200,7 @@ const APP = (function () {
         if (acao === 'ver') abrirDetalhe(r.id);
         if (acao === 'editar') editarRelatorio(r.id);
         if (acao === 'pdf') gerarPdfIndividual(r.id);
+        if (acao === 'imagem') gerarImagem(r.id);
         if (acao === 'excluir') excluirRegistro(r.id);
         if (acao === 'restaurar') {
           const p = AUTH.perfil();
@@ -1242,7 +1265,7 @@ const APP = (function () {
 
     let html = '<div class="rf-det-cab"><span class="selo ' + (r.tipo === 'Saída' ? 'selo-saida' : 'selo-receb') + '">' +
                escapar(r.tipo).toUpperCase() + '</span>' + (nc ? '<span class="selo selo-nc">COM NÃO CONFORMIDADE</span>' : '<span class="selo selo-ok">Sem NC</span>') + '</div>';
-    html += '<h1>' + escapar(r.numero || DB.numeroRelatorio(r)) + '</h1>';
+    html += '<h1>' + escapar(DB.numeroExibicao(r)) + '</h1>';
     html += '<table class="tabela-detalhe"><tbody>';
     const linhas = [
       ['Projeto', DB.nomeProjeto(r)],
@@ -1327,6 +1350,77 @@ const APP = (function () {
     } finally {
       carregando(false);
     }
+  }
+
+  /* -----------------------------------------------------------------
+   * IMAGEM PARA O WHATSAPP (mesmo layout do PDF, em página única)
+   * ----------------------------------------------------------------- */
+  async function gerarImagem(id) {
+    carregando(true, 'Montando a imagem…');
+    try {
+      const reg = await DB.obterRelatorio(id);
+      if (!reg) throw new Error('Relatório não encontrado.');
+      await garantirFotos(reg);
+      const r = await IMAGEM.gerar(id);
+      carregando(false);
+      await mostrarImagem(r.blob, r.nome);
+    } catch (e) {
+      aviso('Falha ao gerar a imagem: ' + (e.message || e), 'erro', 0);
+    } finally {
+      carregando(false);
+    }
+  }
+
+  /**
+   * Janela da imagem: prévia + Enviar no WhatsApp (folha de compartilhar do
+   * aparelho) + Salvar na galeria + Copiar (computador / WhatsApp Web).
+   * O toque no botão é que dispara o compartilhamento (exigência do celular).
+   */
+  function mostrarImagem(blob, nome) {
+    const arquivo = new File([blob], nome, { type: 'image/jpeg', lastModified: Date.now() });
+    const compartilha = podeCompartilhar(arquivo);
+    const url = URL.createObjectURL(blob);
+    const bt = { whats: $('#img-whats'), salvar: $('#img-salvar'), copiar: $('#img-copiar'), fechar: $('#img-fechar') };
+    $('#img-previa').src = url;
+    $('#img-nome').textContent = nome + '  ·  ' + tamanhoLegivel(blob.size);
+    bt.whats.hidden = !compartilha;
+    bt.copiar.hidden = EH_MOVEL || !(navigator.clipboard && window.ClipboardItem);
+    bt.salvar.textContent = EH_MOVEL ? 'Salvar na galeria' : 'Baixar imagem';
+    $('#img-dica').textContent = compartilha
+      ? (EH_IOS ? 'Enviar no WhatsApp: escolha o WhatsApp e o grupo. Salvar na galeria: toque em "Salvar Imagem".'
+                : 'Enviar no WhatsApp: escolha o WhatsApp e o grupo na lista de compartilhamento.')
+      : (EH_MOVEL ? 'A imagem vai para a pasta de downloads e aparece na galeria.'
+                  : 'Baixe a imagem ou copie e cole direto na conversa do WhatsApp Web.');
+    return new Promise((resolve) => {
+      const caixa = $('#modal-imagem');
+      const fim = (modo) => {
+        caixa.hidden = true;
+        Object.keys(bt).forEach(k => { bt[k].onclick = null; });
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        resolve(modo);
+      };
+      const compartilhar = async (texto) => {
+        try { await navigator.share({ files: [arquivo], title: nome, text: texto || undefined }); return true; }
+        catch (e) { if (e && e.name === 'AbortError') return false; downloadDireto(blob, nome); return true; }
+      };
+      bt.whats.onclick = async () => { if (await compartilhar()) { aviso('Imagem enviada pelo compartilhamento.', 'sucesso', 4); fim('compartilhado'); } };
+      bt.salvar.onclick = async () => {
+        // iPhone: a folha de compartilhar tem "Salvar Imagem" (vai para Fotos)
+        if (EH_IOS && compartilha) { if (await compartilhar()) fim('salvo'); return; }
+        downloadDireto(blob, nome);
+        aviso(EH_MOVEL ? 'Imagem salva (pasta Downloads / galeria).' : 'Imagem baixada: ' + nome, 'sucesso', 5);
+        fim('salvo');
+      };
+      bt.copiar.onclick = async () => {
+        try {
+          const png = await IMAGEM.paraPng(blob);
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+          aviso('Imagem copiada. Cole (Ctrl+V) na conversa do WhatsApp Web.', 'sucesso', 6);
+        } catch (e) { aviso('Não foi possível copiar: use "Baixar imagem".', 'alerta', 6); }
+      };
+      bt.fechar.onclick = () => fim('fechado');
+      caixa.hidden = false;
+    });
   }
 
   /** Relatório recebido da base (ou foto perdida no aparelho): baixa o que falta. */
@@ -1653,7 +1747,7 @@ const APP = (function () {
     }));
 
     // Formulário
-    $('#f-projeto').addEventListener('change', () => { $('#campo-projeto-outro').hidden = $('#f-projeto').value !== 'Outro'; });
+    $('#f-projeto').addEventListener('change', atualizarNumero);
     $('#f-lote').addEventListener('change', () => aoMudarLote());
     $('#f-data').addEventListener('change', atualizarNumero);
     $('#f-canteiro').addEventListener('change', () => { $('#campo-canteiro-outro').hidden = $('#f-canteiro').value !== 'Outro'; });
@@ -1675,11 +1769,11 @@ const APP = (function () {
 
     // Lista
     $$('[data-chip]').forEach(b => b.addEventListener('click', () => { estado.chip = b.dataset.chip; carregarHistorico(); }));
-    ['#h-de', '#h-ate', '#h-lote', '#h-excluidos'].forEach(s => $(s).addEventListener('change', carregarHistorico));
+    ['#h-de', '#h-ate', '#h-lote', '#h-projeto', '#h-excluidos'].forEach(s => $(s).addEventListener('change', carregarHistorico));
     let temporizador = null;
     $('#h-texto').addEventListener('input', () => { clearTimeout(temporizador); temporizador = setTimeout(carregarHistorico, 250); });
     $('#btn-limpar-filtros').addEventListener('click', () => {
-      ['#h-de', '#h-ate', '#h-texto', '#h-lote'].forEach(s => { $(s).value = ''; });
+      ['#h-de', '#h-ate', '#h-texto', '#h-lote', '#h-projeto'].forEach(s => { $(s).value = ''; });
       $('#h-excluidos').checked = false;
       estado.chip = '';
       carregarHistorico();
@@ -1692,6 +1786,7 @@ const APP = (function () {
     $('#btn-editar-detalhe').addEventListener('click', () => editarRelatorio(estado.detalheId));
     $('#btn-excluir-detalhe').addEventListener('click', () => excluirRegistro(estado.detalheId));
     $('#btn-pdf-detalhe').addEventListener('click', () => gerarPdfIndividual(estado.detalheId));
+    $('#btn-img-detalhe').addEventListener('click', () => gerarImagem(estado.detalheId));
 
     // Exportação
     $('#exp-periodo').addEventListener('change', atualizarTelaSync);

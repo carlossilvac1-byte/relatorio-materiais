@@ -133,3 +133,20 @@ body.modo-publico .cartao-vidro .btn-iniciar.bv-saida { background: linear-gradi
 .rf-galeria figcaption { white-space: normal; }
 .rf-auditoria { margin-top: 18px; }
 .rf-auditoria summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+
+/* ---------- v1.1.0: imagem para o WhatsApp e número por projeto ---------- */
+.rf-btn-whats { background: #1FAF54; color: #fff; border-color: #1FAF54; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.rf-btn-whats:active { background: #178C43; }
+.rf-btn-whats svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+#btn-img-detalhe { margin: -4px 0 14px; min-height: 52px; font-size: 16px; }
+.caixa-imagem { max-width: 560px; width: calc(100% - 24px); max-height: calc(100dvh - 32px); overflow: auto; }
+.caixa-imagem h3 { margin: 0 0 4px; }
+.img-previa { margin: 10px 0 12px; max-height: 52vh; overflow: auto; border: 1px solid var(--borda); border-radius: 10px; background: #F4F7F9; }
+.img-previa img { display: block; width: 100%; height: auto; }
+.rf-nseq { display: inline-block; font-family: Consolas, "Courier New", monospace; font-weight: 800; color: var(--azul-marinho);
+  background: #E9F6F4; border: 1px solid #BFE3DC; border-radius: 6px; padding: 0 6px; margin-right: 4px; }
+.rf-acao-img { color: #178C43; }
+
+/* Janelas acima do mapa (Leaflet usa z-index até 1000) */
+.modal { z-index: 1200; }
+.carregando { z-index: 1300; }

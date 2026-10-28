@@ -265,7 +265,7 @@ const PDFGEN = (function () {
   /** Dados do recebimento / da saída. */
   function blocoDados(doc, y, reg) {
     y = secaoBloco(doc, y, reg.tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento', 20);
-    y = linha(doc, y, 'Nº do relatório', reg.numero || DB.numeroRelatorio(reg), { negrito: true });
+    y = linha(doc, y, 'Nº do relatório', DB.numeroExibicao(reg), { negrito: true });
     y = linha(doc, y, 'NF', reg.nf);
     y = linha(doc, y, 'Fornecedor', reg.fornecedor);
     if (reg.tipo === 'Saída') {
@@ -467,7 +467,7 @@ const PDFGEN = (function () {
     const doc = new jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
     await corpoRelatorio(doc, TOPO_CONTEUDO, reg, fotos);
     await aplicarFaixas(doc, CONFIG.app.titulo + ' - ' + reg.tipo,
-      (reg.numero || DB.numeroRelatorio(reg)) + '  |  NF ' + reg.nf + '  |  ' + reg.fornecedor);
+      DB.numeroExibicao(reg) + '  |  NF ' + reg.nf + '  |  ' + reg.fornecedor);
     return { doc: doc, nome: nomeArquivo(reg) };
   }
 
@@ -520,8 +520,8 @@ const PDFGEN = (function () {
     // Tabela
     y = secaoBloco(doc, y + 3, 'Relatórios do período', 20);
     const cols = [
-      { t: 'Data', l: 17 }, { t: 'Tipo', l: 20 }, { t: 'Lote', l: 12 }, { t: 'NF', l: 19 },
-      { t: 'Fornecedor', l: 33 }, { t: 'Local / Trecho - Torre', l: 43 }, { t: 'NC', l: 10 }, { t: 'Fotos', l: 12 }, { t: 'Pág.', l: 16 }
+      { t: 'Nº', l: 11 }, { t: 'Data', l: 17 }, { t: 'Tipo', l: 20 }, { t: 'Lote', l: 12 }, { t: 'NF', l: 18 },
+      { t: 'Fornecedor', l: 30 }, { t: 'Local / Trecho - Torre', l: 37 }, { t: 'NC', l: 10 }, { t: 'Fotos', l: 11 }, { t: 'Pág.', l: 16 }
     ];
     const cabecalhoTabela = (yy) => {
       cor(doc, CONFIG.cores.azulMarinho, 'preenchimento'); doc.rect(M, yy, LARG, 7.5, 'F');
@@ -536,7 +536,7 @@ const PDFGEN = (function () {
     for (const r of lista) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8);
       const local = r.tipo === 'Saída' ? [r.trecho, r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' - ') : DB.nomeCanteiro(r);
-      const valores = [dataBR(r.dataRelatorio), r.tipo, r.lote, r.nf, r.fornecedor, local,
+      const valores = [DB.seqExibicao(r), dataBR(r.dataRelatorio), r.tipo, r.lote, r.nf, r.fornecedor, local,
                        r.naoConformidade === 'Sim' ? 'Sim' : 'Não', String(qtds[r.id].total), ''];
       let maxL = 1;
       const partes = valores.map((v, i) => { const pp = doc.splitTextToSize(t(v || '-'), cols[i].l - 3).slice(0, 3); maxL = Math.max(maxL, pp.length); return pp; });
@@ -547,13 +547,13 @@ const PDFGEN = (function () {
       cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.15); doc.line(M, y + alt, M + LARG, y + alt);
       let x = M;
       partes.forEach((pp, i) => {
-        if (i === 1) cor(doc, r.tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento, 'texto');
-        if (i === 6 && pp[0] === 'Sim') { cor(doc, CONFIG.cores.naoConforme, 'texto'); doc.setFont('helvetica', 'bold'); }
+        if (i === 2) cor(doc, r.tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento, 'texto');
+        if (i === 7 && pp[0] === 'Sim') { cor(doc, CONFIG.cores.naoConforme, 'texto'); doc.setFont('helvetica', 'bold'); }
         doc.text(pp, x + 1.8, y + 4.2);
         texto0(doc); doc.setFont('helvetica', 'normal');
         x += cols[i].l;
       });
-      posPaginas.push({ pagina: doc.internal.getCurrentPageInfo().pageNumber, y: y + 4.2, x: x - cols[8].l + 1.8 });
+      posPaginas.push({ pagina: doc.internal.getCurrentPageInfo().pageNumber, y: y + 4.2, x: x - cols[9].l + 1.8 });
       y += alt;
     }
 

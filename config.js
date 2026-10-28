@@ -4,7 +4,7 @@
  * Relatório Fotográfico de Materiais | EDP TRANSMISSÃO CONSTRUÇÃO
  *
  * É o único arquivo que precisa ser alterado no dia a dia:
- *   1) Projetos, lotes e canteiros
+ *   1) Projetos por lote, lotes e canteiros
  *   2) Sugestões de fornecedores e transportadoras
  *   3) Limites operacionais (fotos, compressão, GPS)
  *
@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.0.1',
+    versao: '1.1.0',
     logoOficialNoPacote: true
   },
 
@@ -60,14 +60,35 @@ const CONFIG = {
   },
 
   /* -------------------------------------------------------------------
-   * 3. PROJETOS
+   * 3. PROJETOS POR LOTE (lista fechada — padroniza os nomes)
    * -------------------------------------------------------------------
-   * O primeiro da lista vem pré-selecionado. A opção "Outro" é
-   * acrescentada automaticamente (texto livre).
+   * O campo "Nome do projeto" mostra só os projetos do lote escolhido.
+   * Lote com um único projeto já vem preenchido.
+   *
+   * "sigla" compõe o número do relatório: RF-<SIGLA>-001, RF-<SIGLA>-002…
+   * A numeração é sequencial POR PROJETO, começando em 001, e é definida
+   * pela base central no envio (nunca repete entre aparelhos).
+   *
+   * ATENÇÃO: ao incluir/alterar projeto aqui, inclua/altere também na
+   * tabela "projetos" do Supabase (banco/03-numeracao-projetos.sql), com
+   * a MESMA sigla.
    * ----------------------------------------------------------------- */
-  projetos: [
-    'LT 500 kV Colinas – Ribeiro Gonçalves C3'
-  ],
+  projetosPorLote: {
+    'TN02': [
+      { nome: 'LT 500 kV Colinas – Ribeiro Gonçalves C3', sigla: 'COL-RG-C3' }
+    ],
+    'TM05': [
+      { nome: 'LT-230-KV-ITP-MAT', sigla: 'ITP-MAT' },
+      { nome: 'LT-230-KV-MAT-FIR', sigla: 'MAT-FIR' }
+    ],
+    'TN07': [
+      { nome: 'LT 230 kV Gilbués II', sigla: 'GIL-II' },
+      { nome: 'LT 230 kV Formosa do Rio Preto - Dianópolis C1', sigla: 'FRP-DIA-C1' }
+    ],
+    'TN13': [
+      { nome: 'LT 500 kV Colinas – Ribeiro Gonçalves C3', sigla: 'COL-RG-C3' }
+    ]
+  },
 
   /* -------------------------------------------------------------------
    * 4. LOTES E CANTEIROS
@@ -188,6 +209,24 @@ CONFIG.lotesPermitidos = function (lotesDoUsuario, ehAdmin) {
 CONFIG.listarCanteiros = function (lote) {
   if (!lote || !CONFIG.dominios[lote]) return [];
   return (CONFIG.dominios[lote].canteiros || []).slice();
+};
+
+/** Projetos (nomes) de um lote. */
+CONFIG.listarProjetos = function (lote) {
+  return ((CONFIG.projetosPorLote || {})[lote] || []).map(p => p.nome);
+};
+
+/** Sigla do projeto para o número do relatório ("OUT" se não cadastrado). */
+CONFIG.siglaProjeto = function (nome) {
+  const todos = Object.keys(CONFIG.projetosPorLote || {}).reduce((a, l) => a.concat(CONFIG.projetosPorLote[l]), []);
+  const p = todos.filter(x => x.nome === nome)[0];
+  return p ? p.sigla : 'OUT';
+};
+
+/** Número do relatório: RF-<SIGLA>-001. */
+CONFIG.numeroFormatado = function (projeto, seq) {
+  if (!seq) return '';
+  return 'RF-' + CONFIG.siglaProjeto(projeto) + '-' + String(seq).padStart(3, '0');
 };
 
 /** Rótulo do lote nas telas e no PDF: somente a sigla. */

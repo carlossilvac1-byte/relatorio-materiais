@@ -300,11 +300,38 @@ const DB = (function () {
   // Relatórios
   // ---------------------------------------------------------------
 
-  /** Número do relatório: RFM-<lote>-<aaaammdd>-<4 primeiros do id>. */
+  /**
+   * Número do relatório: RF-<SIGLA DO PROJETO>-001 (sequencial por projeto).
+   * Com a base central, a sequência é definida pelo servidor no envio —
+   * antes disso o relatório fica com o número "pendente".
+   */
   function numeroRelatorio(r) {
     if (!r) return '';
-    const dt = String(r.dataRelatorio || '').replace(/-/g, '');
-    return 'RFM-' + (r.lote || 'LOTE') + '-' + (dt || 'DATA') + '-' + String(r.id || '').slice(0, 4).toUpperCase();
+    if (r.numero && /^RF-/.test(r.numero)) return r.numero;
+    return CONFIG.numeroFormatado(nomeProjeto(r), r.seq);
+  }
+  /** Texto para telas e PDF (com aviso quando ainda não foi numerado). */
+  function numeroExibicao(r) {
+    return numeroRelatorio(r) || 'Nº pendente (definido no envio)';
+  }
+  /** Só a sequência, ex.: "007" (ou "—"). */
+  function seqExibicao(r) {
+    return r && r.seq ? String(r.seq).padStart(3, '0') : '—';
+  }
+
+  /** Próximo número no modo local (sem base central): maior do projeto + 1. */
+  async function proximoSeqLocal(projeto, ignorarId) {
+    const lista = await db.relatorios.toArray();
+    return lista.filter(r => r.id !== ignorarId && nomeProjeto(r) === projeto && r.seq)
+      .reduce((m, r) => Math.max(m, r.seq), 0) + 1;
+  }
+
+  /** Número definido pela base central depois do envio. */
+  async function definirNumero(id, seq, numero) {
+    if (!seq) return;
+    const r = await db.relatorios.get(id);
+    if (!r) return;
+    await db.relatorios.update(id, { seq: seq, numero: numero || CONFIG.numeroFormatado(nomeProjeto(r), seq) });
   }
 
   /** Modelo em branco já vinculado ao usuário logado. */
@@ -315,7 +342,8 @@ const DB = (function () {
       id: uuid(),
       usuarioId: usuarioAtual(),
       numero: '',
-      projeto: (CONFIG.projetos && CONFIG.projetos[0]) || '',
+      seq: null,
+      projeto: (lotes.length === 1 && CONFIG.listarProjetos(lotes[0]).length === 1) ? CONFIG.listarProjetos(lotes[0])[0] : '',
       projetoOutro: '',
       lote: lotes.length === 1 ? lotes[0] : '',
       dataRelatorio: hojeISO(),
@@ -368,7 +396,12 @@ const DB = (function () {
     if (registro.tipo === 'Recebimento') { registro.transportadora = ''; registro.trecho = ''; registro.torre = ''; }
     if (registro.tipo === 'Saída') { registro.canteiro = ''; registro.canteiroOutro = ''; }
     if (registro.naoConformidade !== 'Sim') registro.descricaoNC = '';
-    registro.numero = numeroRelatorio(registro);
+    // Numeração por projeto: trocou de projeto, ganha número novo no novo projeto.
+    if (anterior && nomeProjeto(anterior) !== nomeProjeto(registro)) { registro.seq = null; registro.numero = ''; }
+    if (!registro.seq && window.AUTH && AUTH.modoLocal && AUTH.modoLocal()) {
+      registro.seq = await proximoSeqLocal(nomeProjeto(registro), registro.id);
+    }
+    registro.numero = registro.seq ? CONFIG.numeroFormatado(nomeProjeto(registro), registro.seq) : '';
     registro.atualizadoEm = agora();
     registro.excluido = registro.excluido ? 1 : 0;
     registro.status = 'pendente';
@@ -409,8 +442,9 @@ const DB = (function () {
     if (local && local.atualizadoEm && l.atualizado_em &&
         new Date(local.atualizadoEm).getTime() >= new Date(l.atualizado_em).getTime() &&
         local.origem !== 'servidor') {
-      // É o nosso próprio envio voltando: só registra os caminhos das fotos.
+      // É o nosso próprio envio voltando: registra fotos e o número da base.
       local.fotosRemotas = l.fotos || local.fotosRemotas || [];
+      if (l.seq) { local.seq = l.seq; local.numero = l.numero || CONFIG.numeroFormatado(nomeProjeto(local), l.seq); }
       await db.relatorios.put(local);
       return false;
     }
@@ -418,7 +452,8 @@ const DB = (function () {
       id: l.id_local,
       usuarioId: l.usuario_id,
       origem: (local && local.usuarioId === usuarioAtual() && local.origem !== 'servidor') ? 'aparelho' : 'servidor',
-      numero: l.numero || '',
+      numero: l.seq ? (l.numero || '') : '',
+      seq: l.seq || null,
       projeto: l.projeto || '', projetoOutro: '',
       lote: l.lote,
       dataRelatorio: l.data_relatorio,
@@ -543,6 +578,7 @@ const DB = (function () {
     if (filtros.ate) lista = lista.filter(r => r.dataRelatorio <= filtros.ate);
     if (filtros.lote) lista = lista.filter(r => r.lote === filtros.lote);
     if (filtros.tipo) lista = lista.filter(r => r.tipo === filtros.tipo);
+    if (filtros.projeto) lista = lista.filter(r => nomeProjeto(r) === filtros.projeto);
     if (filtros.naoConformidade) lista = lista.filter(r => r.naoConformidade === filtros.naoConformidade);
     if (filtros.status) lista = lista.filter(r => r.status === filtros.status);
     if (filtros.texto) {
@@ -755,7 +791,7 @@ const DB = (function () {
       const fotos = await db.fotos.where('relatorioId').equals(r.id).toArray();
       const gerais = fotos.length ? fotos.filter(f => !f.vinculo) : (r.fotosRemotas || []).filter(m => !m.vinculo);
       const nc = fotos.length ? fotos.filter(f => f.vinculo) : (r.fotosRemotas || []).filter(m => m.vinculo);
-      const cols = [r.numero || numeroRelatorio(r), r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
+      const cols = [numeroRelatorio(r) || 'pendente', r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
         r.tipo === 'Recebimento' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre, r.descricao,
         r.naoConformidade, r.descricaoNC, r.observacoes];
       for (let i = 1; i <= nFotos; i++) {
@@ -791,7 +827,8 @@ const DB = (function () {
     contarUsuariosLocais: contarUsuariosLocais, listarUsuariosLocais: listarUsuariosLocais,
     obterUsuarioLocalPorEmail: obterUsuarioLocalPorEmail, criarUsuarioLocal: criarUsuarioLocal,
     atualizarUsuarioLocal: atualizarUsuarioLocal, migrarRegistrosLocais: migrarRegistrosLocais,
-    numeroRelatorio: numeroRelatorio, novoRelatorio: novoRelatorio, salvarRelatorio: salvarRelatorio,
+    numeroRelatorio: numeroRelatorio, numeroExibicao: numeroExibicao, seqExibicao: seqExibicao,
+    definirNumero: definirNumero, novoRelatorio: novoRelatorio, salvarRelatorio: salvarRelatorio,
     salvarRecebido: salvarRecebido, salvarFotoRecebida: salvarFotoRecebida, marcarFotoRemota: marcarFotoRemota,
     podeVer: podeVer, ehMeu: ehMeu, obterRelatorio: obterRelatorio, listarRelatorios: listarRelatorios,
     excluirRelatorio: excluirRelatorio, restaurarRelatorio: restaurarRelatorio,

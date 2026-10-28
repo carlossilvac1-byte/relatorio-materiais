@@ -97,7 +97,7 @@ const SYNC = (function () {
     return {
       id_local: reg.id,
       usuario_id: AUTH.usuarioId(),            // o banco reconfirma: autor = quem está logado
-      numero: reg.numero || DB.numeroRelatorio(reg),
+      numero: DB.numeroRelatorio(reg) || null,   // a base central redefine (sequência por projeto)
       responsavel: reg.responsavel,
       funcao_responsavel: reg.funcaoResponsavel || null,
       projeto: DB.nomeProjeto(reg),
@@ -131,7 +131,7 @@ const SYNC = (function () {
   async function enviar(reg) {
     const fotos = reg.excluido ? [] : await DB.listarFotos(reg.id);
     const fotosMeta = fotos.length ? await enviarFotos(reg, fotos) : (reg.fotosRemotas || []);
-    const cab = await AUTH.cabecalhosAutenticados({ Prefer: 'resolution=merge-duplicates,return=minimal' });
+    const cab = await AUTH.cabecalhosAutenticados({ Prefer: 'resolution=merge-duplicates,return=representation' });
     const r = await fetchTimeout(base() + '/rest/v1/' + S().tabelaRelatorios + '?on_conflict=id_local', {
       method: 'POST', headers: cab, body: JSON.stringify(linhaDoRelatorio(reg, fotosMeta))
     }, 30000);
@@ -146,6 +146,12 @@ const SYNC = (function () {
       }
       throw new Error('Base respondeu ' + r.status + ': ' + t.slice(0, 160));
     }
+    // Número sequencial do projeto, definido pela base (RF-<SIGLA>-001…)
+    try {
+      const volta = await r.json();
+      const l = Array.isArray(volta) ? volta[0] : volta;
+      if (l && l.seq) await DB.definirNumero(reg.id, l.seq, l.numero);
+    } catch (e) { /* base ainda sem a numeração: segue sem número */ }
     // Guarda o caminho remoto nas fotos locais (evita reenviar)
     for (const m of fotosMeta) {
       const f = fotos.find(x => x.ordem === m.ordem);
