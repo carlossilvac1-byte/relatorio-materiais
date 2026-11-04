@@ -3,12 +3,13 @@
  * ---------------------------------------------------------------------
  * Mesmo layout e identidade do PDF (faixa EDP, identificação, dados,
  * não conformidade, registro fotográfico e localização), desenhado num
- * canvas como UMA página contínua. Sai em JPEG, pronto para enviar no
+ * canvas como UMA página contínua, em alta resolução (2x). Sai em JPEG, pronto para enviar no
  * WhatsApp ou salvar na galeria. Gerado no próprio aparelho, sem
  * internet (o mapa entra quando há sinal).
  *
  *   IMAGEM.gerar(id)  -> { blob, nome, largura, altura }
  *   IMAGEM.paraPng(b) -> Blob PNG (para copiar na área de transferência)
+ *   IMAGEM.paraPdf(b,w,h) -> PDF de 1 página (envio como documento, sem perda)
  * ===================================================================== */
 
 const IMAGEM = (function () {
@@ -61,10 +62,16 @@ const IMAGEM = (function () {
     });
   }
 
+  // Fotos já decodificadas (o desenho roda duas vezes: medir e desenhar em alta)
+  let CACHE = new Map();
   async function imagemDaFoto(foto) {
     if (!foto || foto.indisponivel || !foto.blob) return null;
+    if (CACHE.has(foto)) return CACHE.get(foto);
     const url = URL.createObjectURL(foto.blob);
-    try { return await carregarImagem(url); } catch (e) { return null; } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+    let img = null;
+    try { img = await carregarImagem(url); } catch (e) { img = null; } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+    CACHE.set(foto, img);
+    return img;
   }
 
   /** Foto centralizada na moldura, sem distorcer (igual ao PDF). */
@@ -111,10 +118,18 @@ const IMAGEM = (function () {
     try { return await carregarImagem(src); } catch (e) { return null; }
   }
 
-  async function desenhar(reg, fotos) {
+  /**
+   * Desenha o relatório. 1ª passada (escala 1) só mede a altura; a 2ª
+   * desenha em ALTA RESOLUÇÃO (até 2x = 2480 px de largura), respeitando
+   * o limite de memória de canvas do iPhone (~16 milhões de pixels).
+   */
+  async function desenhar(reg, fotos, escala, altura) {
+    escala = escala || 1;
     const canvas = document.createElement('canvas');
-    canvas.width = W; canvas.height = 7000;            // recortado no fim
+    canvas.width = Math.round(W * escala); canvas.height = Math.ceil((altura || 7000) * escala);
     const ctx = canvas.getContext('2d');
+    ctx.scale(escala, escala);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, canvas.height);
     const tipoCor = reg.tipo === 'Saída' ? C().saida : C().recebimento;
@@ -141,7 +156,7 @@ const IMAGEM = (function () {
     f(ctx, 26, 'bold'); ctx.fillStyle = C().cabecalho;
     ctx.fillText(DB.numeroExibicao(reg), M + larguraSeq + 28, y + 44);
     f(ctx, 21); ctx.fillStyle = C().textoApoio;
-    ctx.fillText(quebrar(ctx, 'Registrado por ' + (reg.responsavel || '-') + ' em ' + PDFGEN.dataBR(reg.criadoEm), W - M - (M + larguraSeq + 28), 1)[0], M + larguraSeq + 28, y + 74);
+    ctx.fillText(quebrar(ctx, 'Fiscalização: ' + CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel) + '  |  ' + PDFGEN.dataBR(reg.criadoEm), W - M - (M + larguraSeq + 28), 1)[0], M + larguraSeq + 28, y + 74);
     // Selo NC
     ctx.textAlign = 'right';
     const selo = nc ? 'COM NÃO CONFORMIDADE' : 'SEM NÃO CONFORMIDADE';
@@ -261,11 +276,16 @@ const IMAGEM = (function () {
       ? (reg.latitude + ', ' + reg.longitude + (reg.precisaoGps ? '  (±' + reg.precisaoGps + ' m)' : '') + (reg.obsGeo === 'Ajustado no mapa' ? '  - ajustado no mapa' : ''))
       : (reg.obsGeo || 'Não capturada'));
     if (tem) {
-      let mapa = null;
-      try { mapa = await MAPA.imagemEstatica(reg.latitude, reg.longitude, { zoom: 16, largura: 1144, altura: 300, nc: nc }); } catch (e) { mapa = null; }
-      if (mapa) {
+      let im = CACHE.get('mapa');
+      if (im === undefined) {
+        let mapa = null;
+        try { mapa = await MAPA.imagemEstatica(reg.latitude, reg.longitude, { zoom: 16, largura: 1144, altura: 300, nc: nc }); } catch (e) { mapa = null; }
+        im = null;
+        if (mapa) { try { im = await carregarImagem(mapa); } catch (e) { im = null; } }
+        CACHE.set('mapa', im);
+      }
+      if (im) {
         try {
-          const im = await carregarImagem(mapa);
           y += 14;
           ctx.drawImage(im, M, y, LARG, LARG * 300 / 1144);
           ctx.strokeStyle = C().borda; ctx.lineWidth = 2; ctx.strokeRect(M, y, LARG, LARG * 300 / 1144);
@@ -290,12 +310,12 @@ const IMAGEM = (function () {
     ctx.textAlign = 'left';
     y += altRod;
 
-    // Recorta na altura usada
-    const final = document.createElement('canvas');
-    final.width = W; final.height = Math.ceil(y);
-    final.getContext('2d').drawImage(canvas, 0, 0);
-    return final;
+    if (altura) return canvas;                 // 2ª passada: já no tamanho exato
+    return { altura: Math.ceil(y) };           // 1ª passada: só a medida
   }
+
+  const MAX_PIXELS = 16000000;                 // limite seguro de canvas no iPhone
+  const ESCALA_MAX = 2;
 
   function paraBlob(canvas, tipo, qualidade) {
     return new Promise((ok, erro) => {
@@ -318,8 +338,15 @@ const IMAGEM = (function () {
     const reg = await DB.obterRelatorio(id);
     if (!reg) throw new Error('Relatório não encontrado.');
     const fotos = await DB.listarFotos(id);
-    const canvas = await desenhar(reg, fotos);
-    const blob = await paraBlob(canvas, 'image/jpeg', 0.88);
+    CACHE = new Map();
+    let canvas, blob;
+    try {
+      const medida = await desenhar(reg, fotos, 1, 0);
+      const escala = Math.max(1, Math.min(ESCALA_MAX, Math.sqrt(MAX_PIXELS / (W * medida.altura))));
+      canvas = await desenhar(reg, fotos, escala, medida.altura);
+      // JPEG de alta qualidade: texto nítido mesmo após o envio
+      blob = await paraBlob(canvas, 'image/jpeg', 0.95);
+    } finally { CACHE = new Map(); }
     const nome = (DB.numeroRelatorio(reg) || 'RF-' + limpar(reg.lote)) + '_' + limpar(reg.tipo) + '_' + reg.dataRelatorio + '.jpg';
     return { blob: blob, nome: nome, largura: canvas.width, altura: canvas.height };
   }
@@ -334,7 +361,20 @@ const IMAGEM = (function () {
     } finally { URL.revokeObjectURL(url); }
   }
 
-  return { gerar: gerar, paraPng: paraPng };
+  /**
+   * PDF de UMA página com a imagem original (o JPEG entra sem recompressão).
+   * No WhatsApp vai como DOCUMENTO: chega exatamente com a mesma qualidade.
+   */
+  async function paraPdf(blob, largura, altura) {
+    const dados = new Uint8Array(await blob.arrayBuffer());
+    const larguraPt = 595.28;                         // mesma largura de uma folha A4
+    const alturaPt = larguraPt * altura / largura;
+    const doc = new jspdf.jsPDF({ unit: 'pt', format: [larguraPt, alturaPt], orientation: alturaPt >= larguraPt ? 'p' : 'l', compress: true });
+    doc.addImage(dados, 'JPEG', 0, 0, larguraPt, alturaPt, undefined, 'NONE');
+    return doc.output('blob');
+  }
+
+  return { gerar: gerar, paraPng: paraPng, paraPdf: paraPdf };
 })();
 
 window.IMAGEM = IMAGEM;

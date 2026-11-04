@@ -336,8 +336,16 @@
         <label class="campo">
           <span class="rotulo">Nome do projeto <b class="obrig">*</b></span>
           <select id="f-projeto" disabled><option value="">Selecione o lote primeiro</option></select>
-          <span class="apoio pequena">Lista padronizada do lote. A numeração do relatório é sequencial por projeto (001, 002…).</span>
+          <span class="apoio pequena">Lista padronizada do lote.</span>
           <span class="erro" id="e-projeto"></span>
+        </label>
+
+        <label class="campo">
+          <span class="rotulo">Nº do registro</span>
+          <span class="rf-num-campo"><b id="f-seq-prefixo">RF-</b>
+            <input type="text" id="f-seq" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" placeholder="automático"></span>
+          <span class="apoio pequena" id="apoio-seq">Deixe em branco para o número automático (próximo do projeto) ou informe o número do registro.</span>
+          <span class="erro" id="e-seq"></span>
         </label>
 
         <div class="campo" id="campo-tipo">
@@ -633,7 +641,9 @@
         <tbody>
           <tr><th>Nome</th><td id="conta-nome">—</td></tr>
           <tr><th>E-mail</th><td id="conta-email">—</td></tr>
-          <tr><th>Função</th><td id="conta-funcao">—</td></tr>
+          <tr><th>Função</th><td><span class="rf-conta-funcao"><select id="conta-funcao-sel"></select>
+            <button type="button" class="btn btn-secundario" id="btn-salvar-funcao">Salvar</button></span>
+            <span class="apoio pequena">Aparece no relatório como "Fiscalização - função".</span></td></tr>
           <tr><th>Lotes de atuação</th><td id="conta-lotes">—</td></tr>
           <tr><th>Perfil</th><td id="conta-perfil">—</td></tr>
           <tr><th>Sessão offline</th><td id="conta-sessao">—</td></tr>
@@ -734,11 +744,13 @@
     <p class="apoio pequena" id="img-nome"></p>
     <div class="img-previa"><img id="img-previa" alt="Prévia da imagem do relatório"></div>
     <div class="arq-botoes">
-      <button type="button" class="btn btn-bloco rf-btn-whats" id="img-whats">Enviar no WhatsApp</button>
+      <button type="button" class="btn btn-bloco rf-btn-whats" id="img-whats">Enviar no WhatsApp (imagem)</button>
+      <button type="button" class="btn btn-secundario btn-bloco" id="img-doc">Enviar como documento (qualidade original)</button>
       <button type="button" class="btn btn-secundario btn-bloco" id="img-salvar">Salvar na galeria</button>
       <button type="button" class="btn btn-secundario btn-bloco" id="img-copiar" hidden>Copiar imagem (colar no WhatsApp Web)</button>
       <button type="button" class="btn btn-neutro btn-bloco" id="img-fechar">Fechar</button>
     </div>
+    <p class="rf-dica-hd" id="img-hd" hidden><strong>Para não perder qualidade:</strong> no WhatsApp, antes de enviar, toque em <strong>HD</strong> no topo da tela da foto. Ou use “Enviar como documento”: chega exatamente igual.</p>
     <p class="apoio pequena" id="img-dica"></p>
   </div>
 </div>

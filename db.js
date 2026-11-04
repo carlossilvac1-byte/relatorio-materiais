@@ -397,7 +397,8 @@ const DB = (function () {
     if (registro.tipo === 'Saída') { registro.canteiro = ''; registro.canteiroOutro = ''; }
     if (registro.naoConformidade !== 'Sim') registro.descricaoNC = '';
     // Numeração por projeto: trocou de projeto, ganha número novo no novo projeto.
-    if (anterior && nomeProjeto(anterior) !== nomeProjeto(registro)) { registro.seq = null; registro.numero = ''; }
+    if (registro.seqManual) registro.seq = registro.seqManual;          // nº informado pela Fiscalização
+    else if (anterior && nomeProjeto(anterior) !== nomeProjeto(registro)) { registro.seq = null; registro.numero = ''; }
     if (!registro.seq && window.AUTH && AUTH.modoLocal && AUTH.modoLocal()) {
       registro.seq = await proximoSeqLocal(nomeProjeto(registro), registro.id);
     }
@@ -444,7 +445,7 @@ const DB = (function () {
         local.origem !== 'servidor') {
       // É o nosso próprio envio voltando: registra fotos e o número da base.
       local.fotosRemotas = l.fotos || local.fotosRemotas || [];
-      if (l.seq) { local.seq = l.seq; local.numero = l.numero || CONFIG.numeroFormatado(nomeProjeto(local), l.seq); }
+      if (l.seq) { local.seq = l.seq; local.numero = l.numero || CONFIG.numeroFormatado(nomeProjeto(local), l.seq); local.seqManual = l.seq_manual ? l.seq : null; }
       await db.relatorios.put(local);
       return false;
     }
@@ -454,6 +455,7 @@ const DB = (function () {
       origem: (local && local.usuarioId === usuarioAtual() && local.origem !== 'servidor') ? 'aparelho' : 'servidor',
       numero: l.seq ? (l.numero || '') : '',
       seq: l.seq || null,
+      seqManual: l.seq_manual ? l.seq : null,
       projeto: l.projeto || '', projetoOutro: '',
       lote: l.lote,
       dataRelatorio: l.data_relatorio,

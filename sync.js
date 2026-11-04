@@ -131,12 +131,27 @@ const SYNC = (function () {
   async function enviar(reg) {
     const fotos = reg.excluido ? [] : await DB.listarFotos(reg.id);
     const fotosMeta = fotos.length ? await enviarFotos(reg, fotos) : (reg.fotosRemotas || []);
-    const cab = await AUTH.cabecalhosAutenticados({ Prefer: 'resolution=merge-duplicates,return=representation' });
-    const r = await fetchTimeout(base() + '/rest/v1/' + S().tabelaRelatorios + '?on_conflict=id_local', {
-      method: 'POST', headers: cab, body: JSON.stringify(linhaDoRelatorio(reg, fotosMeta))
-    }, 30000);
+    const linha = linhaDoRelatorio(reg, fotosMeta);
+    // Nº do registro informado pela Fiscalização (a base confere se não repete no projeto)
+    if (reg.seqManual) { linha.seq = reg.seqManual; linha.seq_manual = true; }
+    const postar = async (corpo) => {
+      const cab = await AUTH.cabecalhosAutenticados({ Prefer: 'resolution=merge-duplicates,return=representation' });
+      return fetchTimeout(base() + '/rest/v1/' + S().tabelaRelatorios + '?on_conflict=id_local', {
+        method: 'POST', headers: cab, body: JSON.stringify(corpo)
+      }, 30000);
+    };
+    let r = await postar(linha);
+    if (!r.ok && r.status === 400 && reg.seqManual) {
+      // Base ainda sem a coluna do nº manual (script 04 não rodado): envia sem ele
+      const t0 = await r.clone().text().catch(() => '');
+      if (/seq_manual|PGRST204/i.test(t0)) { delete linha.seq; delete linha.seq_manual; r = await postar(linha); }
+    }
     if (!r.ok) {
       const t = await r.text().catch(() => '');
+      if (r.status === 409 || /23505|duplicate key|ux_relatorios_projeto_seq/i.test(t)) {
+        throw new Error('O Nº ' + String(reg.seqManual || '').padStart(3, '0') + ' já existe no projeto ' + DB.nomeProjeto(reg) +
+                        '. Abra o relatório, corrija o "Nº do registro" e salve de novo.');
+      }
       if (r.status === 401) throw new Error('SESSAO_EXPIRADA');
       if (r.status === 404 || /PGRST205|relation .* does not exist/i.test(t)) {
         throw new Error('SEM_TABELA');

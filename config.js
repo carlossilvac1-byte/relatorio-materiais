@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.1.0',
+    versao: '1.2.1',
     logoOficialNoPacote: true
   },
 
@@ -56,7 +56,8 @@ const CONFIG = {
   auth: {
     diasSessaoOffline: 30,     // dias sem internet em que o login continua valendo
     minimoSenha: 8,            // com ao menos uma letra e um número
-    funcoes: ['Analista', 'Almoxarife', 'Técnico', 'Inspetor', 'Consultor', 'Especialista', 'Gestor', 'Outro']
+    funcoes: ['Fiscal de pátio de materiais', 'Fiscal de Campo', 'Fiscal de Logística',
+              'Analista', 'Almoxarife', 'Técnico', 'Inspetor', 'Consultor', 'Especialista', 'Gestor', 'Outro']
   },
 
   /* -------------------------------------------------------------------
@@ -227,6 +228,12 @@ CONFIG.siglaProjeto = function (nome) {
 CONFIG.numeroFormatado = function (projeto, seq) {
   if (!seq) return '';
   return 'RF-' + CONFIG.siglaProjeto(projeto) + '-' + String(seq).padStart(3, '0');
+};
+
+/** Quem registra é sempre a Fiscalização: "Nome - Função" (função omitida se vazia/"Outro"). */
+CONFIG.textoFiscalizacao = function (nome, funcao) {
+  const f = (funcao && funcao !== 'Outro') ? funcao : '';
+  return (nome || '-') + (f ? ' - ' + f : '');
 };
 
 /** Rótulo do lote nas telas e no PDF: somente a sigla. */

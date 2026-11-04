@@ -277,7 +277,7 @@ const PDFGEN = (function () {
     }
     y = linha(doc, y, 'Descrição do material', reg.descricao);
     if (reg.observacoes) y = linha(doc, y, 'Observações gerais', reg.observacoes);
-    y = linha(doc, y, 'Responsável', reg.responsavel + (reg.funcaoResponsavel ? '  (' + reg.funcaoResponsavel + ')' : ''));
+    y = linha(doc, y, 'Fiscalização', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
     return y;
   }
 
@@ -422,19 +422,19 @@ const PDFGEN = (function () {
   /** Registro e validação: quem registrou e espaço para assinaturas. */
   function blocoValidacao(doc, y, reg) {
     y = secaoBloco(doc, y + 3, 'Registro e validação', 36);
-    y = linha(doc, y, 'Registrado por', reg.responsavel + (reg.funcaoResponsavel ? '  (' + reg.funcaoResponsavel + ')' : ''));
+    y = linha(doc, y, 'Registrado por (Fiscalização)', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
     y = linha(doc, y, 'Registrado em', dataBR(reg.criadoEm) + ((reg.versao || 1) > 1 ? '   |   última edição: ' + dataBR(reg.atualizadoEm) : ''));
     if (reg.excluido) y = linha(doc, y, 'Relatório excluído em', dataBR(reg.excluidoEm) + (reg.motivoExclusao ? ' - ' + reg.motivoExclusao : ''), { cor: CONFIG.cores.naoConforme, negrito: true });
     y = novaPaginaSePreciso(doc, y + 4, 20);
+    // Assinatura da Fiscalização: nome, "Fiscalização EDP" e a função
     const larg = (LARG - 12) / 2;
-    [['Responsável pelo registro', reg.responsavel], ['Fiscalização / Logística EDP', '']].forEach((a, i) => {
-      const x = M + i * (larg + 12);
-      cor(doc, '#8A97A3', 'traco'); doc.setLineWidth(0.3);
-      doc.line(x, y + 12, x + larg, y + 12);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); cor(doc, CONFIG.cores.azulMarinho, 'texto');
-      doc.text(t(a[0]), x, y + 16);
-      if (a[1]) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); cor(doc, CONFIG.cores.textoApoio, 'texto'); doc.text(t(a[1]), x, y + 19.5); }
-    });
+    const funcao = (reg.funcaoResponsavel && reg.funcaoResponsavel !== 'Outro') ? reg.funcaoResponsavel : '';
+    cor(doc, '#8A97A3', 'traco'); doc.setLineWidth(0.3);
+    doc.line(M, y + 12, M + larg, y + 12);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.6); cor(doc, CONFIG.cores.azulMarinho, 'texto');
+    doc.text(t(reg.responsavel || '-'), M, y + 16.2);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); cor(doc, CONFIG.cores.textoApoio, 'texto');
+    doc.text(t('Fiscalização EDP' + (funcao ? '  -  ' + funcao : '')), M, y + 19.8);
     texto0(doc);
     return y + 22;
   }

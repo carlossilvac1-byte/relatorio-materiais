@@ -639,6 +639,30 @@ const AUTH = (function () {
     } catch (e) { /* informativo apenas */ }
   }
 
+  /**
+   * O próprio usuário troca a função (aparece no relatório como
+   * "Fiscalização - função"). A RLS permite: é dado descritivo do cadastro.
+   */
+  async function atualizarMinhaFuncao(funcao) {
+    if (!sessao || !sessao.perfil) throw new Error('SEM_SESSAO');
+    if (modoLocal() || sessao.local) {
+      await DB.atualizarUsuarioLocal(sessao.usuarioId, { funcao: funcao });
+    } else {
+      if (!navigator.onLine) throw new Error('SEM_REDE');
+      const cab = await cabecalhosAutenticados({ Prefer: 'return=representation' });
+      const r = await fetchTimeout(base() + '/rest/v1/' + CONFIG.supabase.tabelaUsuarios +
+        '?id=eq.' + encodeURIComponent(sessao.usuarioId), { method: 'PATCH', headers: cab, body: JSON.stringify({ funcao: funcao }) }, 20000);
+      const t = await r.text();
+      if (!r.ok) throw new Error(t.slice(0, 160) || ('HTTP ' + r.status));
+      let linhas = []; try { linhas = JSON.parse(t); } catch (e) { /* sem corpo */ }
+      if (!Array.isArray(linhas) || !linhas.length) throw new Error('A base não confirmou a alteração.');
+    }
+    sessao.perfil = Object.assign({}, sessao.perfil, { funcao: funcao });
+    await DB.kvSet(CHAVE_SESSAO, sessao);
+    notificar();
+    return true;
+  }
+
   /** Token de acesso válido (ou null) — usado pelo canal de tempo real. */
   async function obterTokenAcesso() {
     try { return await obterToken(); } catch (e) { return null; }
@@ -689,7 +713,15 @@ const AUTH = (function () {
     }, 20000);
     const t = await r.text();
     if (!r.ok) throw new Error('Falha ao atualizar: ' + t.slice(0, 180));
-    try { return JSON.parse(t); } catch (e) { return true; }
+    let linhas = null; try { linhas = JSON.parse(t); } catch (e) { return true; }
+    // Nenhuma linha devolvida = a base recusou em silêncio (sem permissão)
+    if (Array.isArray(linhas) && !linhas.length) throw new Error('A base não confirmou a alteração (sem permissão de administrador?).');
+    // Alterou o próprio cadastro: a sessão passa a usar o valor novo
+    if (sessao && sessao.perfil && id === sessao.usuarioId && Array.isArray(linhas) && linhas[0] && linhas[0].funcao) {
+      sessao.perfil = Object.assign({}, sessao.perfil, { funcao: linhas[0].funcao });
+      try { await DB.kvSet(CHAVE_SESSAO, sessao); notificar(); } catch (e) { /* segue */ }
+    }
+    return linhas;
   }
 
   /** Base de acessos (planilha carregada no banco) — só o admin lê. */
@@ -715,28 +747,30 @@ const AUTH = (function () {
   /* No modo local a administração age sobre as contas do aparelho. */
   const adminLocal = {
     listar: () => DB.listarUsuariosLocais(),
-    aprovar: (id, lotes, visao) => DB.atualizarUsuarioLocal(id, Object.assign({ status: 'ativo', lotes: lotes }, visao ? { visao: visao } : {})),
+    aprovar: (id, lotes, visao, funcao) => DB.atualizarUsuarioLocal(id, Object.assign({ status: 'ativo', lotes: lotes }, visao ? { visao: visao } : {}, funcao ? { funcao: funcao } : {})),
     recusar: (id) => DB.atualizarUsuarioLocal(id, { status: 'recusado' }),
     desativar: (id) => DB.atualizarUsuarioLocal(id, { status: 'inativo' }),
     reativar: (id) => DB.atualizarUsuarioLocal(id, { status: 'ativo' }),
     definirLotes: (id, lotes) => DB.atualizarUsuarioLocal(id, { lotes: lotes }),
     promover: (id) => DB.atualizarUsuarioLocal(id, { perfil: 'admin' }),
     rebaixar: (id) => DB.atualizarUsuarioLocal(id, { perfil: 'inspetor' }),
-    definirAcesso: (id, lotes, visao) => DB.atualizarUsuarioLocal(id, { lotes: lotes, visao: visao }),
+    definirAcesso: (id, lotes, visao, funcao) => DB.atualizarUsuarioLocal(id, Object.assign({ lotes: lotes, visao: visao }, funcao ? { funcao: funcao } : {})),
+    definirFuncao: (id, funcao) => DB.atualizarUsuarioLocal(id, { funcao: funcao }),
     baseDeAcessos: async () => [],
     contarPendentes: async () => 0
   };
 
   const adminServidor = {
     listar: listarUsuarios,
-    aprovar: (id, lotes, visao) => atualizarUsuario(id, Object.assign({ status: 'ativo', lotes: lotes }, visao ? { visao: visao } : {})),
+    aprovar: (id, lotes, visao, funcao) => atualizarUsuario(id, Object.assign({ status: 'ativo', lotes: lotes }, visao ? { visao: visao } : {}, funcao ? { funcao: funcao } : {})),
     recusar: (id) => atualizarUsuario(id, { status: 'recusado' }),
     desativar: (id) => atualizarUsuario(id, { status: 'inativo' }),
     reativar: (id) => atualizarUsuario(id, { status: 'ativo' }),
     definirLotes: (id, lotes) => atualizarUsuario(id, { lotes: lotes }),
     promover: (id) => atualizarUsuario(id, { perfil: 'admin' }),
     rebaixar: (id) => atualizarUsuario(id, { perfil: 'inspetor' }),
-    definirAcesso: (id, lotes, visao) => atualizarUsuario(id, { lotes: lotes, visao: visao }),
+    definirAcesso: (id, lotes, visao, funcao) => atualizarUsuario(id, Object.assign({ lotes: lotes, visao: visao }, funcao ? { funcao: funcao } : {})),
+    definirFuncao: (id, funcao) => atualizarUsuario(id, { funcao: funcao }),
     baseDeAcessos: listarAutorizacoes,
     contarPendentes: contarPendentes
   };
@@ -744,7 +778,7 @@ const AUTH = (function () {
   // Fachada: a tela chama AUTH.admin.* sem saber em qual modo está.
   const admin = {};
   ['listar', 'aprovar', 'recusar', 'desativar', 'reativar', 'definirLotes', 'promover',
-   'rebaixar', 'definirAcesso', 'baseDeAcessos', 'contarPendentes'].forEach(function (acao) {
+   'rebaixar', 'definirAcesso', 'definirFuncao', 'baseDeAcessos', 'contarPendentes'].forEach(function (acao) {
     admin[acao] = function () {
       const alvo = modoLocal() ? adminLocal : adminServidor;
       return alvo[acao].apply(null, arguments);
@@ -806,6 +840,7 @@ const AUTH = (function () {
     cabecalhosAutenticados: cabecalhosAutenticados,
     obterTokenAcesso: obterTokenAcesso,
     informarSituacao: informarSituacao,
+    atualizarMinhaFuncao: atualizarMinhaFuncao,
     admin: admin
   };
 })();

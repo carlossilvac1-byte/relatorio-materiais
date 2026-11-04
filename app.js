@@ -673,6 +673,10 @@ const APP = (function () {
     const proj = $('#f-projeto').value;
     const mesmoProjeto = proj && proj === DB.nomeProjeto(r);
     const el = $('#txt-numero');
+    $('#f-seq-prefixo').textContent = 'RF-' + (proj ? CONFIG.siglaProjeto(proj) : '…') + '-';
+    $('#f-seq').placeholder = (r.seq && mesmoProjeto && !r.seqManual) ? 'automático (atual ' + DB.seqExibicao(r) + ')' : 'automático';
+    const digitado = $('#f-seq').value.trim();
+    if (digitado && /^\d+$/.test(digitado) && proj) { el.textContent = 'Nº ' + String(Number(digitado)).padStart(3, '0') + ' · ' + CONFIG.numeroFormatado(proj, Number(digitado)); return; }
     if (r.seq && mesmoProjeto) { el.textContent = 'Nº ' + DB.seqExibicao(r) + ' · ' + DB.numeroRelatorio(r); return; }
     if (!proj) { el.textContent = ''; return; }
     el.textContent = AUTH.modoLocal() ? 'Nº definido ao salvar' : 'Nº definido no envio (RF-' + CONFIG.siglaProjeto(proj) + '-…)';
@@ -705,6 +709,7 @@ const APP = (function () {
     $$('input[name=nc]').forEach(x => { x.checked = (x.value === (reg.naoConformidade || 'Não')); });
     aplicarNC();
     $('#f-descricao-nc').value = reg.descricaoNC || '';
+    $('#f-seq').value = reg.seqManual && reg.seq ? String(reg.seq).padStart(3, '0') : '';
     limparErros('#form-relatorio');
     atualizarNumero();
     await atualizarSugestoes();
@@ -787,6 +792,14 @@ const APP = (function () {
     if (!lote) { marcarErro('f-lote', 'Selecione o lote.'); erros.push('Lote'); }
     else if (AUTH.lotes().indexOf(lote) === -1) { marcarErro('f-lote', 'Você não tem acesso a este lote.'); erros.push('Lote não autorizado'); }
 
+    const seqTxt = $('#f-seq').value.trim();
+    if (seqTxt && !/^\d{1,5}$/.test(seqTxt) || seqTxt && Number(seqTxt) < 1) {
+      marcarErro('f-seq', 'Use só números (ex.: 7 ou 007).'); erros.push('Nº do registro');
+    } else if (seqTxt && projeto && estado.duplicadoLocal) {
+      marcarErro('f-seq', 'O Nº ' + String(Number(seqTxt)).padStart(3, '0') + ' já existe neste projeto (' + estado.duplicadoLocal + ').');
+      erros.push('Nº do registro repetido');
+    }
+
     const data = $('#f-data').value;
     if (!data) { marcarErro('f-data', 'Informe a data.'); erros.push('Data'); }
     else if (data > hojeISO()) { marcarErro('f-data', 'Não é permitida data futura.'); erros.push('Data futura'); }
@@ -816,11 +829,26 @@ const APP = (function () {
     return erros;
   }
 
+  /** Nº informado à mão já usado por outro relatório do mesmo projeto neste aparelho? */
+  async function duplicadoLocal() {
+    const txt = $('#f-seq').value.trim(), proj = $('#f-projeto').value;
+    if (!txt || !/^\d+$/.test(txt) || !proj || !estado.registro) return null;
+    const n = Number(txt);
+    const lista = await DB.listarRelatorios({ projeto: proj, incluirExcluidos: false });
+    const outro = lista.find(x => x.id !== estado.registro.id && x.seq === n);
+    return outro ? ('NF ' + (outro.nf || '-') + ' de ' + dataBR(outro.dataRelatorio)) : null;
+  }
+
   function coletarFormulario() {
     const r = estado.registro;
     const p = AUTH.perfil();
     r.responsavel = r.responsavel || (p ? p.nome : '');
-    r.funcaoResponsavel = r.funcaoResponsavel || (p ? p.funcao : '');
+    // Quem registra é a Fiscalização: a função acompanha o cadastro atual do autor
+    if (p && DB.ehMeu(r)) r.funcaoResponsavel = p.funcao || r.funcaoResponsavel || '';
+    else r.funcaoResponsavel = r.funcaoResponsavel || (p ? p.funcao : '');
+    const seqTxt = $('#f-seq').value.trim();
+    r.seqManual = seqTxt ? Number(seqTxt) : null;
+    if (r.seqManual) r.seq = r.seqManual;
     r.emailResponsavel = r.emailResponsavel || (p ? p.email : '');
     r.projeto = $('#f-projeto').value;
     r.projetoOutro = '';
@@ -844,6 +872,7 @@ const APP = (function () {
   async function salvarFormulario(ev) {
     if (ev) ev.preventDefault();
     await salvarLegendasPendentes();
+    estado.duplicadoLocal = await duplicadoLocal();
     const erros = validar();
     if (erros.length) {
       aviso('Não foi possível salvar. Corrija: ' + erros.join(', ') + '.', 'erro', 8);
@@ -1280,7 +1309,7 @@ const APP = (function () {
     linhas.push(['Descrição do material', r.descricao]);
     if (r.observacoes) linhas.push(['Observações gerais', r.observacoes]);
     linhas.push(['Não conformidade', r.naoConformidade]);
-    linhas.push(['Responsável', r.responsavel + (r.funcaoResponsavel ? ' (' + r.funcaoResponsavel + ')' : '')]);
+    linhas.push(['Fiscalização', CONFIG.textoFiscalizacao(r.responsavel, r.funcaoResponsavel)]);
     linhas.push(['Coordenadas', MAPA.temCoord(r)
       ? (r.latitude + ', ' + r.longitude + (r.precisaoGps ? ' (±' + r.precisaoGps + ' m)' : '') + (r.obsGeo === 'Ajustado no mapa' ? ' • ajustado no mapa' : ''))
       : (r.obsGeo || 'Não capturada')]);
@@ -1356,14 +1385,14 @@ const APP = (function () {
    * IMAGEM PARA O WHATSAPP (mesmo layout do PDF, em página única)
    * ----------------------------------------------------------------- */
   async function gerarImagem(id) {
-    carregando(true, 'Montando a imagem…');
+    carregando(true, 'Montando a imagem em alta resolução…');
     try {
       const reg = await DB.obterRelatorio(id);
       if (!reg) throw new Error('Relatório não encontrado.');
       await garantirFotos(reg);
       const r = await IMAGEM.gerar(id);
       carregando(false);
-      await mostrarImagem(r.blob, r.nome);
+      await mostrarImagem(r.blob, r.nome, r.largura, r.altura);
     } catch (e) {
       aviso('Falha ao gerar a imagem: ' + (e.message || e), 'erro', 0);
     } finally {
@@ -1376,21 +1405,31 @@ const APP = (function () {
    * aparelho) + Salvar na galeria + Copiar (computador / WhatsApp Web).
    * O toque no botão é que dispara o compartilhamento (exigência do celular).
    */
-  function mostrarImagem(blob, nome) {
+  function mostrarImagem(blob, nome, largura, altura) {
     const arquivo = new File([blob], nome, { type: 'image/jpeg', lastModified: Date.now() });
     const compartilha = podeCompartilhar(arquivo);
     const url = URL.createObjectURL(blob);
-    const bt = { whats: $('#img-whats'), salvar: $('#img-salvar'), copiar: $('#img-copiar'), fechar: $('#img-fechar') };
+    const bt = { whats: $('#img-whats'), doc: $('#img-doc'), salvar: $('#img-salvar'), copiar: $('#img-copiar'), fechar: $('#img-fechar') };
     $('#img-previa').src = url;
-    $('#img-nome').textContent = nome + '  ·  ' + tamanhoLegivel(blob.size);
+    $('#img-nome').textContent = nome + '  ·  ' + (largura ? largura + '×' + altura + ' px  ·  ' : '') + tamanhoLegivel(blob.size);
     bt.whats.hidden = !compartilha;
+    $('#img-hd').hidden = !compartilha;
+    const nomePdf = nome.replace(/\.jpe?g$/i, '') + '.pdf';
+    let pdfArquivo = null;
+    const obterPdf = async () => {
+      if (!pdfArquivo) pdfArquivo = new File([await IMAGEM.paraPdf(blob, largura, altura)], nomePdf, { type: 'application/pdf', lastModified: Date.now() });
+      return pdfArquivo;
+    };
+    // O PDF é preparado já ao abrir: o toque no botão precisa compartilhar na hora (iPhone)
+    if (window.jspdf && largura) obterPdf().catch(() => {});
+    bt.doc.hidden = !(window.jspdf && largura);
     bt.copiar.hidden = EH_MOVEL || !(navigator.clipboard && window.ClipboardItem);
     bt.salvar.textContent = EH_MOVEL ? 'Salvar na galeria' : 'Baixar imagem';
     $('#img-dica').textContent = compartilha
       ? (EH_IOS ? 'Enviar no WhatsApp: escolha o WhatsApp e o grupo. Salvar na galeria: toque em "Salvar Imagem".'
                 : 'Enviar no WhatsApp: escolha o WhatsApp e o grupo na lista de compartilhamento.')
       : (EH_MOVEL ? 'A imagem vai para a pasta de downloads e aparece na galeria.'
-                  : 'Baixe a imagem ou copie e cole direto na conversa do WhatsApp Web.');
+                  : 'Baixe ou copie e cole no WhatsApp Web (marque HD antes de enviar), ou envie como documento para manter a qualidade original.');
     return new Promise((resolve) => {
       const caixa = $('#modal-imagem');
       const fim = (modo) => {
@@ -1404,6 +1443,20 @@ const APP = (function () {
         catch (e) { if (e && e.name === 'AbortError') return false; downloadDireto(blob, nome); return true; }
       };
       bt.whats.onclick = async () => { if (await compartilhar()) { aviso('Imagem enviada pelo compartilhamento.', 'sucesso', 4); fim('compartilhado'); } };
+      bt.doc.onclick = async () => {
+        try {
+          const pdf = pdfArquivo || await obterPdf();
+          if (podeCompartilhar(pdf)) {
+            try { await navigator.share({ files: [pdf], title: nomePdf }); }
+            catch (e) { if (e && e.name === 'AbortError') return; downloadDireto(pdf, nomePdf); }
+            aviso('Documento enviado: chega no WhatsApp com a qualidade original.', 'sucesso', 5);
+          } else {
+            downloadDireto(pdf, nomePdf);
+            aviso('Documento baixado: ' + nomePdf + '. Anexe no WhatsApp como documento.', 'sucesso', 6);
+          }
+          fim('documento');
+        } catch (e) { aviso('Não foi possível montar o documento: ' + (e.message || e), 'erro', 6); }
+      };
       bt.salvar.onclick = async () => {
         // iPhone: a folha de compartilhar tem "Salvar Imagem" (vai para Fotos)
         if (EH_IOS && compartilha) { if (await compartilhar()) fim('salvo'); return; }
@@ -1541,7 +1594,9 @@ const APP = (function () {
     const est = AUTH.estado();
     $('#conta-nome').textContent = p ? p.nome : '—';
     $('#conta-email').textContent = p ? p.email : '—';
-    $('#conta-funcao').textContent = p ? p.funcao : '—';
+    const funcoes = CONFIG.auth.funcoes.slice();
+    if (p && p.funcao && funcoes.indexOf(p.funcao) === -1) funcoes.unshift(p.funcao);
+    preencherSelect($('#conta-funcao-sel'), funcoes, null, p ? p.funcao : '');
     $('#conta-lotes').textContent = est.lotes.length ? est.lotes.join(', ') : 'nenhum';
     $('#conta-perfil').textContent = est.ehAdmin ? 'Administrador (vê todos os relatórios e libera acessos)'
       : AUTH.veTodas() ? 'Visualiza todos os relatórios dos seus lotes' : 'Visualiza somente os próprios relatórios';
@@ -1551,6 +1606,21 @@ const APP = (function () {
     $('#txt-sobre').textContent = CONFIG.app.nome + ' • versão ' + CONFIG.app.versao +
       (AUTH.modoLocal() ? ' • modo local (sem base central)' : ' • base central ativa');
     verificarLiberacoes();
+  }
+
+  async function salvarMinhaFuncao() {
+    const funcao = $('#conta-funcao-sel').value;
+    if (!funcao) return;
+    carregando(true, 'Salvando a função…');
+    try {
+      await AUTH.atualizarMinhaFuncao(funcao);
+      aviso('Função atualizada: ' + funcao + '. Os próximos relatórios saem como "Fiscalização - ' + funcao + '".', 'sucesso', 6);
+      montarTelaMais();
+    } catch (e) {
+      aviso(String(e.message || e) === 'SEM_REDE' ? 'Alterar a função exige internet.' : 'Falha ao salvar a função: ' + (e.message || e), 'erro', 8);
+    } finally {
+      carregando(false);
+    }
   }
 
   /* ===================================================================
@@ -1619,9 +1689,11 @@ const APP = (function () {
         '<div class="linha3">' + escapar(u.funcao || '—') + ' • cadastro: ' + (u.criado_em ? dataBR(u.criado_em) : '—') + '</div>' +
         (u.status === 'ativo' ? situacaoEnvio(u) : '') + quadroBase +
         (ehAdm
-          ? '<div class="linha3">Administrador: vê todos os relatórios de todos os lotes e libera acessos.</div>'
+          ? '<div class="linha3">Administrador: vê todos os relatórios de todos os lotes e libera acessos.</div>' +
+            '<div class="lib-grade"><label><div class="rotulo">Função (aparece no relatório)</div>' + seletorFuncao(u) + '</label></div>'
           : '<div class="lib-grade">' +
               '<div><div class="rotulo">Lotes liberados</div><div class="lista-check" data-lotes></div></div>' +
+              '<label><div class="rotulo">Função (aparece no relatório)</div>' + seletorFuncao(u) + '</label>' +
               '<label><div class="rotulo">O que pode visualizar</div><select data-visao>' +
                 '<option value="proprias"' + (visaoPadrao !== 'todas' ? ' selected' : '') + '>Somente os próprios relatórios</option>' +
                 '<option value="todas"' + (visaoPadrao === 'todas' ? ' selected' : '') + '>Todos os relatórios dos seus lotes</option>' +
@@ -1633,6 +1705,8 @@ const APP = (function () {
           (u.status === 'ativo' && !ehAdm
             ? '<button type="button" class="btn btn-secundario" data-acao="salvar-acesso">Salvar alterações</button>' +
               '<button type="button" class="btn btn-neutro" data-acao="desativar">Bloquear acesso</button>' : '') +
+          (ehAdm || u.status === 'inativo' || u.status === 'recusado'
+            ? '<button type="button" class="btn btn-secundario" data-acao="salvar-funcao">Salvar função</button>' : '') +
           ((u.status === 'inativo' || u.status === 'recusado') && !ehEu
             ? '<button type="button" class="btn btn-primario" data-acao="reativar">Liberar novamente</button>' : '') +
         '</div>';
@@ -1653,10 +1727,18 @@ const APP = (function () {
         ev.stopPropagation();
         const lotes = cxLotes ? Array.prototype.slice.call(cxLotes.querySelectorAll('input:checked')).map(i => i.value) : [];
         const sel = div.querySelector('[data-visao]');
-        await acaoAdmin(acao, u, lotes, sel ? sel.value : 'proprias');
+        const selF = div.querySelector('[data-funcao]');
+        await acaoAdmin(acao, u, lotes, sel ? sel.value : 'proprias', selF ? selF.value : null);
       });
       cont.appendChild(div);
     });
+  }
+
+  /** Lista de funções (a atual entra mesmo se não estiver mais na lista). */
+  function seletorFuncao(u) {
+    const fs = CONFIG.auth.funcoes.slice();
+    if (u.funcao && fs.indexOf(u.funcao) === -1) fs.unshift(u.funcao);
+    return '<select data-funcao>' + fs.map(fn => '<option' + (fn === u.funcao ? ' selected' : '') + '>' + escapar(fn) + '</option>').join('') + '</select>';
   }
 
   function situacaoEnvio(u) {
@@ -1673,15 +1755,20 @@ const APP = (function () {
                 : ' • nada pendente no aparelho') + '</div>';
   }
 
-  async function acaoAdmin(acao, u, lotes, visao) {
+  async function acaoAdmin(acao, u, lotes, visao, funcao) {
     const descVisao = visao === 'todas' ? 'todos os relatórios dos lotes' : 'somente os próprios relatórios';
     const rotulos = {
       aprovar: 'Liberar o acesso de ' + u.nome + ' aos lotes ' + lotes.join(', ') + ', visualizando ' + descVisao + '?',
       recusar: 'Recusar o cadastro de ' + u.nome + '? A pessoa não conseguirá entrar no app.',
       desativar: 'Bloquear o acesso de ' + u.nome + '? Ele perde o acesso na próxima sincronização.',
       reativar: 'Liberar novamente o acesso de ' + u.nome + '?',
-      'salvar-acesso': 'Salvar para ' + u.nome + ': lotes ' + lotes.join(', ') + ' e visão de ' + descVisao + '?'
+      'salvar-funcao': 'Alterar a função de ' + u.nome + ' para "' + (funcao || '') + '"? Ela passa a aparecer nos próximos relatórios como "Fiscalização - ' + (funcao || '') + '".',
+      'salvar-acesso': 'Salvar para ' + u.nome + ': ' + (funcao ? 'função ' + funcao + ', ' : '') + 'lotes ' + lotes.join(', ') + ' e visão de ' + descVisao + '?'
     };
+    if (acao === 'salvar-funcao' && (!funcao || funcao === u.funcao)) {
+      aviso('Escolha uma função diferente da atual.', 'alerta', 6);
+      return;
+    }
     if ((acao === 'aprovar' || acao === 'salvar-acesso' || acao === 'reativar') && u.perfil !== 'admin' && !lotes.length) {
       aviso('Marque ao menos um lote antes de liberar.', 'alerta', 8);
       return;
@@ -1690,10 +1777,14 @@ const APP = (function () {
     if (!c.ok) return;
     carregando(true, 'Aplicando…');
     try {
-      if (acao === 'aprovar' || acao === 'reativar') await AUTH.admin.aprovar(u.id, lotes, visao);
+      if (acao === 'aprovar' || acao === 'reativar') await AUTH.admin.aprovar(u.id, lotes, visao, funcao);
       if (acao === 'recusar') await AUTH.admin.recusar(u.id);
       if (acao === 'desativar') await AUTH.admin.desativar(u.id);
-      if (acao === 'salvar-acesso') await AUTH.admin.definirAcesso(u.id, lotes, visao);
+      if (acao === 'salvar-acesso') await AUTH.admin.definirAcesso(u.id, lotes, visao, funcao);
+      if (acao === 'salvar-funcao') {
+        if (u.id === AUTH.usuarioId()) await AUTH.atualizarMinhaFuncao(funcao);   // o próprio admin: sessão atualizada
+        else await AUTH.admin.definirFuncao(u.id, funcao);
+      }
       aviso(acao === 'aprovar' ? 'Acesso liberado. ' + u.nome.split(' ')[0] + ' já pode entrar no app.' : 'Alteração aplicada.', 'sucesso', 5);
       estado.pendentesAvisados = null;
       await carregarUsuarios();
@@ -1748,6 +1839,8 @@ const APP = (function () {
 
     // Formulário
     $('#f-projeto').addEventListener('change', atualizarNumero);
+    $('#f-seq').addEventListener('input', () => { $('#f-seq').value = $('#f-seq').value.replace(/\D/g, '').slice(0, 5); marcarErro('f-seq', null); atualizarNumero(); });
+    $('#btn-salvar-funcao').addEventListener('click', salvarMinhaFuncao);
     $('#f-lote').addEventListener('change', () => aoMudarLote());
     $('#f-data').addEventListener('change', atualizarNumero);
     $('#f-canteiro').addEventListener('change', () => { $('#campo-canteiro-outro').hidden = $('#f-canteiro').value !== 'Outro'; });

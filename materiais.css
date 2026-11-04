@@ -147,6 +147,18 @@ body.modo-publico .cartao-vidro .btn-iniciar.bv-saida { background: linear-gradi
   background: #E9F6F4; border: 1px solid #BFE3DC; border-radius: 6px; padding: 0 6px; margin-right: 4px; }
 .rf-acao-img { color: #178C43; }
 
+/* v1.2.0: nº do registro manual e função na conta */
+.rf-num-campo { display: flex; align-items: center; gap: 0; border: 1px solid var(--borda); border-radius: 10px; overflow: hidden; background: #fff; }
+.rf-num-campo b { padding: 0 10px; font-family: Consolas, "Courier New", monospace; font-size: 14px; color: var(--cabecalho); background: #EEF2F5; align-self: stretch; display: flex; align-items: center; white-space: nowrap; }
+.rf-num-campo input { border: 0 !important; border-radius: 0 !important; font-family: Consolas, "Courier New", monospace; font-weight: 700; letter-spacing: 1px; min-width: 0; }
+.campo.invalido .rf-num-campo { border-color: var(--nao-conforme); }
+.rf-conta-funcao { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rf-conta-funcao select { flex: 1 1 180px; min-height: 42px; }
+.rf-conta-funcao .btn { min-height: 42px; padding: 6px 14px; }
+
 /* Janelas acima do mapa (Leaflet usa z-index até 1000) */
 .modal { z-index: 1200; }
 .carregando { z-index: 1300; }
+
+/* v1.2.1 — dica de envio em HD no WhatsApp */
+.rf-dica-hd{margin:12px 0 4px;padding:10px 12px;border-radius:10px;background:#E9F6F4;border:1px solid #BFE3DC;color:#14324A;font-size:.86rem;line-height:1.4}
