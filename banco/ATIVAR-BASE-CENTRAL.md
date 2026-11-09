@@ -17,7 +17,17 @@ Tempo estimado: 15 minutos. Plano gratuito do Supabase atende (permite 2 projeto
 2. Nova query → cole `banco/02-base-de-acessos.sql` → **Run**.
    (É a planilha BASE_LOG: você como administrador; Victor no TN13; Claudemir em todos os lotes.)
 
-Os dois scripts podem ser rodados de novo sem problema.
+3. (v1.1.0) Nova query → cole `banco/03-numeracao-projetos.sql` → **Run**.
+   Cria a tabela de projetos por lote e a numeração sequencial por projeto
+   (RF-<SIGLA>-001…), e numera os relatórios que já existem na ordem de criação.
+
+4. (v1.2.0) Nova query → cole `banco/04-numero-manual.sql` → **Run**.
+   Permite informar o "Nº do registro" no formulário (em branco continua automático).
+
+5. (v1.3.0) Nova query → cole `banco/05-tipo-fabrica.sql` → **Run**.
+   Libera o tipo **Fábrica** (saída de material na fábrica): fabricante, tipo de torre e peso da carga.
+
+Os scripts podem ser rodados de novo sem problema.
 
 ## 3. Configurar o login
 **Authentication → URL Configuration**
