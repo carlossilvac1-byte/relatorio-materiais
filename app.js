@@ -638,14 +638,24 @@ const APP = (function () {
   function aplicarTipo() {
     const tipo = tipoEscolhido();
     $('.opcao-receb').classList.toggle('escolhida', tipo === 'Recebimento');
+    const fab = tipo === 'Fábrica';
     $('.opcao-saida').classList.toggle('escolhida', tipo === 'Saída');
+    $('.opcao-fabrica').classList.toggle('escolhida', fab);
     $('#dados-tipo').hidden = !tipo;
-    $('#bloco-recebimento').hidden = tipo !== 'Recebimento';
+    $('#bloco-recebimento').hidden = !(tipo === 'Recebimento' || fab);
     $('#bloco-saida').hidden = tipo !== 'Saída';
-    $('#tit-dados').textContent = tipo === 'Recebimento' ? 'Dados do recebimento'
-                                : tipo === 'Saída' ? 'Dados da saída' : 'Dados do material';
+    $('#bloco-fabrica').hidden = !fab;
+    $('#bloco-peso').hidden = !fab;
+    $('#campo-fornecedor').hidden = fab;
+    $('#rot-nf').textContent = fab ? 'Nº da NF / Romaneio' : 'NF';
+    $('#f-nf').placeholder = fab ? 'Nº da nota fiscal ou do romaneio' : 'Nº da nota fiscal';
+    $('#rot-canteiro').textContent = fab ? 'Canteiro destino' : 'Canteiro';
+    $('#rot-descricao').textContent = fab ? 'Descrição da carga' : 'Descrição do material';
+    $('#f-descricao').placeholder = fab ? 'Peças, conjuntos, quantidades, volumes, amarração…' : 'Material, quantidade, unidade, volumes, estado da embalagem…';
+    $('#tit-dados').textContent = tipo ? CONFIG.tituloDados(tipo) : 'Dados do material';
     $('#sub-dados').textContent = tipo === 'Recebimento' ? 'NF, fornecedor, canteiro e descrição do material'
                                 : tipo === 'Saída' ? 'NF, fornecedor, transportadora, trecho, torre e descrição'
+                                : fab ? 'Fabricante, tipo de torre, carga, NF/romaneio, peso e canteiro destino'
                                 : 'Escolha o tipo para abrir os campos';
     $('#cartao-dados').dataset.tipo = tipo;
     if (tipo) marcarErro('campo-tipo', null);
@@ -685,6 +695,18 @@ const APP = (function () {
   async function atualizarSugestoes() {
     preencherDatalist('lista-fornecedores', await DB.sugestoes('fornecedor', CONFIG.sugestoes.fornecedores));
     preencherDatalist('lista-transportadoras', await DB.sugestoes('transportadora', CONFIG.sugestoes.transportadoras));
+    preencherDatalist('lista-fabricantes', await DB.sugestoes('fabricante', CONFIG.sugestoes.fabricantes));
+    preencherDatalist('lista-tipos-torre', await DB.sugestoes('tipoTorre', CONFIG.sugestoes.tiposTorre));
+  }
+
+  /** Converte o peso digitado ("18.450,5", "18450.5", "18 450") em número (kg). */
+  function lerPeso(txt) {
+    let t = String(txt || '').trim().replace(/\s|kg/gi, '');
+    if (!t) return null;
+    if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
+    else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
+    const n = Number(t);
+    return isFinite(n) ? n : NaN;
   }
 
   /** Preenche a tela com um registro (novo ou em edição). */
@@ -704,6 +726,9 @@ const APP = (function () {
     $('#f-transportadora').value = reg.transportadora || '';
     $('#f-trecho').value = reg.trecho || '';
     $('#f-torre').value = reg.torre || '';
+    $('#f-fabricante').value = reg.fabricante || '';
+    $('#f-tipo-torre').value = reg.tipoTorre || '';
+    $('#f-peso').value = (reg.pesoCarga || reg.pesoCarga === 0) ? Number(reg.pesoCarga).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '';
     $('#f-descricao').value = reg.descricao || '';
     $('#f-observacoes').value = reg.observacoes || '';
     $$('input[name=nc]').forEach(x => { x.checked = (x.value === (reg.naoConformidade || 'Não')); });
@@ -805,7 +830,18 @@ const APP = (function () {
     else if (data > hojeISO()) { marcarErro('f-data', 'Não é permitida data futura.'); erros.push('Data futura'); }
 
     const tipo = tipoEscolhido();
-    if (!tipo) { marcarErro('campo-tipo', 'Escolha Recebimento ou Saída.'); $('#e-tipo').textContent = 'Escolha Recebimento ou Saída.'; erros.push('Tipo'); }
+    if (!tipo) { marcarErro('campo-tipo', 'Escolha Recebimento, Saída ou Fábrica.'); $('#e-tipo').textContent = 'Escolha Recebimento, Saída ou Fábrica.'; erros.push('Tipo'); }
+    else if (tipo === 'Fábrica') {
+      if (!$('#f-fabricante').value.trim()) { marcarErro('f-fabricante', 'Informe o fabricante.'); erros.push('Fabricante'); }
+      if (!$('#f-tipo-torre').value.trim()) { marcarErro('f-tipo-torre', 'Informe o tipo de torre.'); erros.push('Tipo de torre'); }
+      if ($('#f-descricao').value.trim().length < 3) { marcarErro('f-descricao', 'Descreva a carga.'); erros.push('Descrição da carga'); }
+      if (!$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe o nº da NF ou do romaneio.'); erros.push('NF/Romaneio'); }
+      const peso = lerPeso($('#f-peso').value);
+      if (peso === null) { marcarErro('f-peso', 'Informe o peso da carga em kg.'); erros.push('Peso da carga'); }
+      else if (isNaN(peso) || peso <= 0) { marcarErro('f-peso', 'Peso inválido. Use números, ex.: 18.450,5'); erros.push('Peso da carga'); }
+      if (!$('#f-canteiro').value) { marcarErro('f-canteiro', 'Selecione o canteiro destino.'); erros.push('Canteiro destino'); }
+      if ($('#f-canteiro').value === 'Outro' && !$('#f-canteiro-outro').value.trim()) { marcarErro('f-canteiro-outro', 'Informe o canteiro destino.'); erros.push('Canteiro destino (Outro)'); }
+    }
     else {
       if (!$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe a NF.'); erros.push('NF'); }
       if (!$('#f-fornecedor').value.trim()) { marcarErro('f-fornecedor', 'Informe o fornecedor.'); erros.push('Fornecedor'); }
@@ -862,6 +898,10 @@ const APP = (function () {
     r.transportadora = $('#f-transportadora').value.trim();
     r.trecho = $('#f-trecho').value.trim();
     r.torre = $('#f-torre').value.trim();
+    r.fabricante = $('#f-fabricante').value.trim();
+    r.tipoTorre = $('#f-tipo-torre').value.trim();
+    const peso = lerPeso($('#f-peso').value);
+    r.pesoCarga = (peso === null || isNaN(peso)) ? null : peso;
     r.descricao = $('#f-descricao').value.trim();
     r.observacoes = $('#f-observacoes').value.trim();
     r.naoConformidade = ncEscolhida();
@@ -996,7 +1036,7 @@ const APP = (function () {
   }
 
   /* ---------------------------------------------------------------
-   * FOTOS — 6 espaços com observação + fotos da NC
+   * FOTOS — 10 espaços com observação + fotos da NC
    * ------------------------------------------------------------- */
   const FOTO_INDISPONIVEL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
     '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
@@ -1131,6 +1171,11 @@ const APP = (function () {
     };
   }
 
+  /** Classe CSS por tipo: t-receb / t-saida / t-fabrica, selo-… */
+  function classeTipo(tipo, prefixo) {
+    return prefixo + (tipo === 'Fábrica' ? 'fabrica' : tipo === 'Saída' ? 'saida' : 'receb');
+  }
+
   function aplicarChip(lista) {
     if (estado.chip === 'NC') return lista.filter(r => r.naoConformidade === 'Sim');
     if (estado.chip) return lista.filter(r => r.tipo === estado.chip);
@@ -1164,9 +1209,10 @@ const APP = (function () {
     $('#k-total').textContent = ativos.length;
     $('#k-receb').textContent = ativos.filter(r => r.tipo === 'Recebimento').length;
     $('#k-saida').textContent = ativos.filter(r => r.tipo === 'Saída').length;
+    $('#k-fabrica').textContent = ativos.filter(r => r.tipo === 'Fábrica').length;
     $('#k-nc').textContent = ativos.filter(r => r.naoConformidade === 'Sim').length;
     const contagem = { '': base.length, 'Recebimento': base.filter(r => r.tipo === 'Recebimento').length,
-                       'Saída': base.filter(r => r.tipo === 'Saída').length, 'NC': base.filter(r => r.naoConformidade === 'Sim').length };
+                       'Saída': base.filter(r => r.tipo === 'Saída').length, 'Fábrica': base.filter(r => r.tipo === 'Fábrica').length, 'NC': base.filter(r => r.naoConformidade === 'Sim').length };
     $$('[data-chip]').forEach(b => {
       b.classList.toggle('ativa', b.dataset.chip === estado.chip);
       b.querySelector('i').textContent = contagem[b.dataset.chip];
@@ -1191,7 +1237,7 @@ const APP = (function () {
       const qtd = await DB.contarFotos(r.id);
       const meu = DB.ehMeu(r);
       const div = document.createElement('div');
-      div.className = 'item rf-item ' + (r.tipo === 'Saída' ? 't-saida' : 't-receb') +
+      div.className = 'item rf-item ' + classeTipo(r.tipo, 't-') +
                       (r.naoConformidade === 'Sim' ? ' com-nc' : '') + (r.excluido ? ' excluido' : '');
       const status = meu ? (SYNC.ativo() && r.status !== 'sincronizado'
                         ? '<span class="selo selo-cinza">' + (r.status === 'erro' ? 'ERRO NO ENVIO' : 'NA FILA') + '</span>' : '')
@@ -1199,10 +1245,13 @@ const APP = (function () {
       div.innerHTML =
         '<div class="topo">' +
           '<span class="data"><span class="rf-nseq">Nº ' + DB.seqExibicao(r) + '</span> ' + dataBR(r.dataRelatorio) + ' • ' + escapar(r.lote) + '</span>' +
-          '<span class="rf-selos"><span class="selo ' + (r.tipo === 'Saída' ? 'selo-saida' : 'selo-receb') + '">' + escapar(r.tipo).toUpperCase() + '</span>' + status + '</span>' +
+          '<span class="rf-selos"><span class="selo ' + classeTipo(r.tipo, 'selo-') + '">' + escapar(r.tipo).toUpperCase() + '</span>' + status + '</span>' +
         '</div>' +
-        '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
-        '<div class="linha3">' + escapar(DB.localResumo(r)) + (r.tipo === 'Saída' && r.transportadora ? ' • ' + escapar(r.transportadora) : '') + '</div>' +
+        (r.tipo === 'Fábrica'
+          ? '<div class="linha2"><b>' + escapar(r.fabricante || r.fornecedor) + '</b> — NF/Romaneio ' + escapar(r.nf) + '</div>' +
+            '<div class="linha3">' + escapar([r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
+          : '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
+            '<div class="linha3">' + escapar(DB.localResumo(r)) + (r.tipo === 'Saída' && r.transportadora ? ' • ' + escapar(r.transportadora) : '') + '</div>') +
         '<div class="linha3 rf-desc">' + escapar((r.descricao || '').slice(0, 120)) + '</div>' +
         '<div class="linha3">' +
           (r.naoConformidade === 'Sim'
@@ -1292,7 +1341,7 @@ const APP = (function () {
     const auditoria = await DB.listarAuditoria(id);
     const nc = r.naoConformidade === 'Sim';
 
-    let html = '<div class="rf-det-cab"><span class="selo ' + (r.tipo === 'Saída' ? 'selo-saida' : 'selo-receb') + '">' +
+    let html = '<div class="rf-det-cab"><span class="selo ' + classeTipo(r.tipo, 'selo-') + '">' +
                escapar(r.tipo).toUpperCase() + '</span>' + (nc ? '<span class="selo selo-nc">COM NÃO CONFORMIDADE</span>' : '<span class="selo selo-ok">Sem NC</span>') + '</div>';
     html += '<h1>' + escapar(DB.numeroExibicao(r)) + '</h1>';
     html += '<table class="tabela-detalhe"><tbody>';
@@ -1300,13 +1349,17 @@ const APP = (function () {
       ['Projeto', DB.nomeProjeto(r)],
       ['Lote', CONFIG.rotuloLote(r.lote)],
       ['Data', dataBR(r.dataRelatorio)],
-      ['Tipo', r.tipo],
-      ['NF', r.nf],
-      ['Fornecedor', r.fornecedor]
+      ['Tipo', r.tipo === 'Fábrica' ? 'Fábrica (saída)' : r.tipo]
     ];
-    if (r.tipo === 'Recebimento') linhas.push(['Canteiro', DB.nomeCanteiro(r)]);
-    else linhas.push(['Transportadora', r.transportadora], ['Trecho', r.trecho], ['Torre', r.torre]);
-    linhas.push(['Descrição do material', r.descricao]);
+    if (r.tipo === 'Fábrica') {
+      linhas.push(['Fabricante', r.fabricante], ['Tipo de torre', r.tipoTorre], ['Descrição da carga', r.descricao],
+                  ['NF / Romaneio', r.nf], ['Peso da carga', CONFIG.pesoFormatado(r.pesoCarga)], ['Canteiro destino', DB.nomeCanteiro(r)]);
+    } else {
+      linhas.push(['NF', r.nf], ['Fornecedor', r.fornecedor]);
+      if (r.tipo === 'Recebimento') linhas.push(['Canteiro', DB.nomeCanteiro(r)]);
+      else linhas.push(['Transportadora', r.transportadora], ['Trecho', r.trecho], ['Torre', r.torre]);
+      linhas.push(['Descrição do material', r.descricao]);
+    }
     if (r.observacoes) linhas.push(['Observações gerais', r.observacoes]);
     linhas.push(['Não conformidade', r.naoConformidade]);
     linhas.push(['Fiscalização', CONFIG.textoFiscalizacao(r.responsavel, r.funcaoResponsavel)]);

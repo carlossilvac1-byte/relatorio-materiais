@@ -24,6 +24,9 @@ Tempo estimado: 15 minutos. Plano gratuito do Supabase atende (permite 2 projeto
 4. (v1.2.0) Nova query → cole `banco/04-numero-manual.sql` → **Run**.
    Permite informar o "Nº do registro" no formulário (em branco continua automático).
 
+5. (v1.3.0) Nova query → cole `banco/05-tipo-fabrica.sql` → **Run**.
+   Libera o tipo **Fábrica** (saída de material na fábrica): fabricante, tipo de torre e peso da carga.
+
 Os scripts podem ser rodados de novo sem problema.
 
 ## 3. Configurar o login

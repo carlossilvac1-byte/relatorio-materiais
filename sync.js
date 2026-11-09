@@ -106,7 +106,7 @@ const SYNC = (function () {
       tipo: reg.tipo,
       nf: reg.nf || null,
       fornecedor: reg.fornecedor || null,
-      canteiro: reg.tipo === 'Recebimento' ? (DB.nomeCanteiro(reg) || null) : null,
+      canteiro: reg.tipo !== 'Saída' ? (DB.nomeCanteiro(reg) || null) : null,   // Fábrica: canteiro destino
       transportadora: reg.tipo === 'Saída' ? (reg.transportadora || null) : null,
       trecho: reg.tipo === 'Saída' ? (reg.trecho || null) : null,
       torre: reg.tipo === 'Saída' ? (reg.torre || null) : null,
@@ -134,6 +134,12 @@ const SYNC = (function () {
     const linha = linhaDoRelatorio(reg, fotosMeta);
     // Nº do registro informado pela Fiscalização (a base confere se não repete no projeto)
     if (reg.seqManual) { linha.seq = reg.seqManual; linha.seq_manual = true; }
+    // Fábrica: campos próprios (só vão quando o tipo é Fábrica)
+    if (reg.tipo === 'Fábrica') {
+      linha.fabricante = reg.fabricante || null;
+      linha.tipo_torre = reg.tipoTorre || null;
+      linha.peso_carga = (reg.pesoCarga || reg.pesoCarga === 0) ? Number(reg.pesoCarga) : null;
+    }
     const postar = async (corpo) => {
       const cab = await AUTH.cabecalhosAutenticados({ Prefer: 'resolution=merge-duplicates,return=representation' });
       return fetchTimeout(base() + '/rest/v1/' + S().tabelaRelatorios + '?on_conflict=id_local', {
@@ -153,6 +159,9 @@ const SYNC = (function () {
                         '. Abra o relatório, corrija o "Nº do registro" e salve de novo.');
       }
       if (r.status === 401) throw new Error('SESSAO_EXPIRADA');
+      if (reg.tipo === 'Fábrica' && /fabricante|tipo_torre|peso_carga|relatorios_tipo_valido|PGRST204|23514/i.test(t)) {
+        throw new Error('SEM_FABRICA');
+      }
       if (r.status === 404 || /PGRST205|relation .* does not exist/i.test(t)) {
         throw new Error('SEM_TABELA');
       }
@@ -188,6 +197,8 @@ const SYNC = (function () {
         // Base sem a tabela (script ainda não rodado): fica na fila, sem
         // contar tentativa, e sobe sozinho quando a tabela existir.
         if (msg === 'SEM_TABELA') { resumo.semTabela = true; break; }
+        // Base ainda sem o tipo Fábrica (banco/05 não rodado): fica na fila e sobe depois
+        if (msg === 'SEM_FABRICA') { resumo.semFabrica = true; await DB.marcarStatus(reg.id, 'pendente', 'Aguardando a base central liberar o tipo Fábrica.'); continue; }
         await DB.marcarStatus(reg.id, 'erro', msg === 'SESSAO_EXPIRADA' ? 'Sessão expirada — entre novamente.' : msg);
         resumo.falhas++;
         if (msg === 'SESSAO_EXPIRADA') break;

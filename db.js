@@ -355,6 +355,9 @@ const DB = (function () {
       transportadora: '',
       trecho: '',
       torre: '',
+      fabricante: '',
+      tipoTorre: '',
+      pesoCarga: null,
       descricao: '',
       naoConformidade: 'Não',
       descricaoNC: '',
@@ -393,8 +396,10 @@ const DB = (function () {
       registro.usuarioId = usuarioAtual();
     }
     // Campos que não pertencem ao tipo escolhido saem do registro.
-    if (registro.tipo === 'Recebimento') { registro.transportadora = ''; registro.trecho = ''; registro.torre = ''; }
+    if (registro.tipo === 'Recebimento' || registro.tipo === 'Fábrica') { registro.transportadora = ''; registro.trecho = ''; registro.torre = ''; }
     if (registro.tipo === 'Saída') { registro.canteiro = ''; registro.canteiroOutro = ''; }
+    if (registro.tipo === 'Fábrica') registro.fornecedor = registro.fabricante || '';   // fabricante = fornecedor da carga
+    else { registro.fabricante = ''; registro.tipoTorre = ''; registro.pesoCarga = null; }
     if (registro.naoConformidade !== 'Sim') registro.descricaoNC = '';
     // Numeração por projeto: trocou de projeto, ganha número novo no novo projeto.
     if (registro.seqManual) registro.seq = registro.seqManual;          // nº informado pela Fiscalização
@@ -466,6 +471,9 @@ const DB = (function () {
       transportadora: l.transportadora || '',
       trecho: l.trecho || '',
       torre: l.torre || '',
+      fabricante: l.fabricante || '',
+      tipoTorre: l.tipo_torre || '',
+      pesoCarga: (l.peso_carga === null || l.peso_carga === undefined) ? null : Number(l.peso_carga),
       descricao: l.descricao || '',
       naoConformidade: l.nao_conformidade ? 'Sim' : 'Não',
       descricaoNC: l.descricao_nc || '',
@@ -559,6 +567,9 @@ const DB = (function () {
   function nomeCanteiro(r) { return r.canteiro === 'Outro' ? (r.canteiroOutro || 'Outro') : (r.canteiro || ''); }
   /** Local resumido: canteiro (recebimento) ou trecho/torre (saída). */
   function localResumo(r) {
+    if (r.tipo === 'Fábrica') {
+      return ['Destino: ' + nomeCanteiro(r), r.tipoTorre].filter(Boolean).join(' • ');
+    }
     if (r.tipo === 'Saída') {
       return [r.trecho ? 'Trecho ' + r.trecho : '', r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' • ');
     }
@@ -587,7 +598,7 @@ const DB = (function () {
       const t = String(filtros.texto).toLowerCase().trim();
       lista = lista.filter(r => [
         r.numero, nomeProjeto(r), r.lote, r.tipo, r.nf, r.fornecedor, nomeCanteiro(r), r.transportadora,
-        r.trecho, r.torre, r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
+        r.trecho, r.torre, r.fabricante, r.tipoTorre, r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
       ].join(' ').toLowerCase().indexOf(t) !== -1);
     }
     lista.sort((a, b) => (b.dataRelatorio + b.criadoEm).localeCompare(a.dataRelatorio + a.criadoEm));
@@ -783,7 +794,8 @@ const DB = (function () {
     const lista = await listarRelatorios(Object.assign({}, filtros || {}, { incluirExcluidos: false }));
     const nFotos = CONFIG.limites.fotosRelatorio;
     const cab = ['Numero', 'Tipo', 'Data', 'Projeto', 'Lote', 'NF', 'Fornecedor', 'Canteiro',
-                 'Transportadora', 'Trecho', 'Torre', 'Descricao do material', 'Nao conformidade',
+                 'Transportadora', 'Trecho', 'Torre', 'Fabricante', 'Tipo de torre', 'Peso da carga (kg)',
+                 'Descricao do material / carga', 'Nao conformidade',
                  'Descricao da NC', 'Observacoes'];
     for (let i = 1; i <= nFotos; i++) cab.push('Obs foto ' + i);
     cab.push('Qtd fotos', 'Qtd fotos NC', 'Latitude', 'Longitude', 'Responsavel', 'Funcao',
@@ -794,7 +806,8 @@ const DB = (function () {
       const gerais = fotos.length ? fotos.filter(f => !f.vinculo) : (r.fotosRemotas || []).filter(m => !m.vinculo);
       const nc = fotos.length ? fotos.filter(f => f.vinculo) : (r.fotosRemotas || []).filter(m => m.vinculo);
       const cols = [numeroRelatorio(r) || 'pendente', r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
-        r.tipo === 'Recebimento' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre, r.descricao,
+        r.tipo !== 'Saída' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre,
+        r.fabricante || '', r.tipoTorre || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
         r.naoConformidade, r.descricaoNC, r.observacoes];
       for (let i = 1; i <= nFotos; i++) {
         const f = gerais.find(x => x.slot === i);

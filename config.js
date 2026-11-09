@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.2.1',
+    versao: '1.3.0',
     logoOficialNoPacote: true
   },
 
@@ -146,19 +146,23 @@ const CONFIG = {
    * ----------------------------------------------------------------- */
   sugestoes: {
     fornecedores: ['Brametal'],
-    transportadoras: ['TDM Transporte']
+    transportadoras: ['TDM Transporte'],
+    fabricantes: ['Brametal'],
+    tiposTorre: ['Autoportante', 'Estaiada', 'Ancoragem', 'Suspensão', 'Transposição', 'Fim de linha']
   },
 
   /* -------------------------------------------------------------------
    * 6. TIPOS DE RELATÓRIO (não altere os nomes: o banco confere)
    * ----------------------------------------------------------------- */
-  tipos: ['Recebimento', 'Saída'],
+  // "Fábrica" = saída de material na fábrica (fabricante, tipo de torre,
+  // carga, NF/romaneio, peso e canteiro de destino).
+  tipos: ['Recebimento', 'Saída', 'Fábrica'],
 
   /* -------------------------------------------------------------------
    * 7. LIMITES OPERACIONAIS
    * ----------------------------------------------------------------- */
   limites: {
-    fotosRelatorio: 6,         // espaços de foto do relatório (cada um com observação)
+    fotosRelatorio: 10,        // espaços de foto do relatório (cada um com observação)
     fotosNC: 6,                // fotos da não conformidade
     fotoLadoMaior: 1600,
     fotoAlvoBytes: 300 * 1024,
@@ -185,7 +189,8 @@ const CONFIG = {
     naoConforme:  '#C62828',
     pendente:     '#F9A825',
     recebimento:  '#1F7A8C',
-    saida:        '#B26A00'
+    saida:        '#B26A00',
+    fabrica:      '#5B4BA8'
   }
 };
 
@@ -242,3 +247,17 @@ CONFIG.rotuloLote = function (lote) {
 };
 
 window.CONFIG = CONFIG;
+
+/** Cor de cada tipo de relatório (PDF, imagem e tela). */
+CONFIG.corTipo = function (tipo) {
+  return tipo === 'Fábrica' ? CONFIG.cores.fabrica : tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento;
+};
+/** Título da seção de dados conforme o tipo. */
+CONFIG.tituloDados = function (tipo) {
+  return tipo === 'Fábrica' ? 'Dados da saída da fábrica' : tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento';
+};
+/** Peso em kg, no formato brasileiro (ex.: 18.450,5 kg). */
+CONFIG.pesoFormatado = function (kg) {
+  if (kg === null || kg === undefined || kg === '' || isNaN(Number(kg))) return '';
+  return Number(kg).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' kg';
+};

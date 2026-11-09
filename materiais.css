@@ -12,6 +12,8 @@
   --receb-claro: #E6F3F6;
   --saida: #B26A00;
   --saida-claro: #FFF3E0;
+  --fabrica: #5B4BA8;
+  --fabrica-claro: #EFECFA;
 }
 
 /* ---------- Cabeçalho do formulário ---------- */
@@ -162,3 +164,27 @@ body.modo-publico .cartao-vidro .btn-iniciar.bv-saida { background: linear-gradi
 
 /* v1.2.1 — dica de envio em HD no WhatsApp */
 .rf-dica-hd{margin:12px 0 4px;padding:10px 12px;border-radius:10px;background:#E9F6F4;border:1px solid #BFE3DC;color:#14324A;font-size:.86rem;line-height:1.4}
+
+/* v1.3.0 — tipo Fábrica (saída de material na fábrica) */
+.radio-grande.rf-tipo { grid-template-columns: 1fr 1fr; }
+.rf-tipo .opcao { min-width: 0; }
+.rf-tipo .opcao-fabrica { grid-column: 1 / -1; }
+@media (min-width: 600px) { .radio-grande.rf-tipo { grid-template-columns: repeat(3, 1fr); } .rf-tipo .opcao-fabrica { grid-column: auto; } }
+.rf-tipo .opcao small { display: block; font-weight: 600; font-size: 11px; opacity: .75; text-transform: lowercase; }
+.rf-tipo .opcao-fabrica.escolhida { border-color: var(--fabrica); background: var(--fabrica-claro); color: var(--fabrica); }
+#cartao-dados[data-tipo="Fábrica"] .secao-num { background: var(--fabrica); color: #fff; }
+.rf-kpis { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 520px) { .rf-kpis { grid-template-columns: repeat(3, 1fr); } }
+.rf-kpi.k-fabrica { border-top-color: var(--fabrica); } .rf-kpi.k-fabrica b { color: var(--fabrica); }
+.selo-fabrica { background: var(--fabrica-claro); color: var(--fabrica); border: 1px solid #D3CCF0; }
+.rf-item.t-fabrica { border-left-color: var(--fabrica); }
+body.modo-publico .cartao-vidro .btn-iniciar.bv-fabrica { background: linear-gradient(135deg, #4A3C93, #6E5CC4); border-color: transparent; }
+/* Fábrica: campos na ordem do relatório — fabricante, tipo de torre, carga, NF/romaneio, peso, canteiro destino */
+#cartao-dados[data-tipo="Fábrica"] #dados-tipo { display: flex; flex-direction: column; }
+#cartao-dados[data-tipo="Fábrica"] #bloco-fabrica { order: 1; }
+#cartao-dados[data-tipo="Fábrica"] #campo-descricao { order: 2; }
+#cartao-dados[data-tipo="Fábrica"] #linha-nf { order: 3; grid-template-columns: 1fr; }
+#cartao-dados[data-tipo="Fábrica"] #bloco-peso { order: 4; }
+#cartao-dados[data-tipo="Fábrica"] #bloco-recebimento { order: 5; }
+#cartao-dados[data-tipo="Fábrica"] #campo-observacoes { order: 6; }
+#cartao-dados[data-tipo="Fábrica"] #bloco-saida { display: none; }

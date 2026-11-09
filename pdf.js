@@ -160,7 +160,7 @@ const PDFGEN = (function () {
 
   /** Faixa de identificação: PROJETO | LOTE | DATA | TIPO. */
   function faixaIdentificacao(doc, y, reg) {
-    const tipoCor = reg.tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento;
+    const tipoCor = CONFIG.corTipo(reg.tipo);
     const cols = [
       { r: 'PROJETO', v: DB.nomeProjeto(reg), l: LARG * 0.46 },
       { r: 'LOTE', v: CONFIG.rotuloLote(reg.lote), l: LARG * 0.14 },
@@ -264,8 +264,19 @@ const PDFGEN = (function () {
 
   /** Dados do recebimento / da saída. */
   function blocoDados(doc, y, reg) {
-    y = secaoBloco(doc, y, reg.tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento', 20);
+    y = secaoBloco(doc, y, CONFIG.tituloDados(reg.tipo), 20);
     y = linha(doc, y, 'Nº do relatório', DB.numeroExibicao(reg), { negrito: true });
+    if (reg.tipo === 'Fábrica') {
+      y = linha(doc, y, 'Fabricante', reg.fabricante);
+      y = linha(doc, y, 'Tipo de torre', reg.tipoTorre);
+      y = linha(doc, y, 'Descrição da carga', reg.descricao);
+      y = linha(doc, y, 'Nº da NF / Romaneio', reg.nf);
+      y = linha(doc, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
+      y = linha(doc, y, 'Canteiro destino', DB.nomeCanteiro(reg));
+      if (reg.observacoes) y = linha(doc, y, 'Observações gerais', reg.observacoes);
+      y = linha(doc, y, 'Fiscalização', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
+      return y;
+    }
     y = linha(doc, y, 'NF', reg.nf);
     y = linha(doc, y, 'Fornecedor', reg.fornecedor);
     if (reg.tipo === 'Saída') {
@@ -486,6 +497,8 @@ const PDFGEN = (function () {
     let y = TOPO_CONTEUDO;
     const p = (window.AUTH && AUTH.perfil) ? AUTH.perfil() : null;
     const receb = lista.filter(r => r.tipo === 'Recebimento').length;
+    const saidas = lista.filter(r => r.tipo === 'Saída').length;
+    const fabrica = lista.filter(r => r.tipo === 'Fábrica').length;
     const comNC = lista.filter(r => r.naoConformidade === 'Sim').length;
     let totalFotos = 0;
     const qtds = {};
@@ -496,11 +509,12 @@ const PDFGEN = (function () {
     const cards = [
       ['Relatórios', lista.length, CONFIG.cores.verdeAgua],
       ['Recebimentos', receb, CONFIG.cores.recebimento],
-      ['Saídas', lista.length - receb, CONFIG.cores.saida],
+      ['Saídas', saidas, CONFIG.cores.saida],
+      ['Fábrica', fabrica, CONFIG.cores.fabrica],
       ['Com NC', comNC, CONFIG.cores.naoConforme],
       ['Fotos', totalFotos, CONFIG.cores.azulMarinho]
     ];
-    const lc = (LARG - 4 * 4) / 5;
+    const lc = (LARG - 4 * (cards.length - 1)) / cards.length;
     cards.forEach((c, i) => {
       const x = M + i * (lc + 4);
       doc.setFillColor(255, 255, 255); cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.3);
@@ -535,7 +549,9 @@ const PDFGEN = (function () {
     let alterna = false;
     for (const r of lista) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8);
-      const local = r.tipo === 'Saída' ? [r.trecho, r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' - ') : DB.nomeCanteiro(r);
+      const local = r.tipo === 'Saída' ? [r.trecho, r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' - ')
+                  : r.tipo === 'Fábrica' ? ['Destino ' + DB.nomeCanteiro(r), CONFIG.pesoFormatado(r.pesoCarga)].filter(Boolean).join(' - ')
+                  : DB.nomeCanteiro(r);
       const valores = [DB.seqExibicao(r), dataBR(r.dataRelatorio), r.tipo, r.lote, r.nf, r.fornecedor, local,
                        r.naoConformidade === 'Sim' ? 'Sim' : 'Não', String(qtds[r.id].total), ''];
       let maxL = 1;
@@ -547,7 +563,7 @@ const PDFGEN = (function () {
       cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.15); doc.line(M, y + alt, M + LARG, y + alt);
       let x = M;
       partes.forEach((pp, i) => {
-        if (i === 2) cor(doc, r.tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento, 'texto');
+        if (i === 2) cor(doc, CONFIG.corTipo(r.tipo), 'texto');
         if (i === 7 && pp[0] === 'Sim') { cor(doc, CONFIG.cores.naoConforme, 'texto'); doc.setFont('helvetica', 'bold'); }
         doc.text(pp, x + 1.8, y + 4.2);
         texto0(doc); doc.setFont('helvetica', 'normal');

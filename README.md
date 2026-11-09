@@ -6,7 +6,9 @@ Supabase como base central, GitHub Pages como hospedagem.
 ## O que faz
 - Relatório de **Recebimento** (NF, fornecedor, canteiro, descrição) ou **Saída**
   (NF, fornecedor, transportadora, trecho, torre, descrição), com projeto, lote e data.
-- **6 espaços de foto** (tirar ou anexar), cada um com a sua observação.
+- **Fábrica** (saída de material na fábrica): fabricante, tipo de torre, descrição da carga,
+  nº da NF/romaneio, peso da carga (kg) e canteiro destino.
+- **10 espaços de foto** (tirar ou anexar), cada um com a sua observação.
 - **Não conformidade** Sim/Não: ao marcar Sim, descrição obrigatória + até 6 fotos.
 - **GPS em tempo real** com mapa (OpenStreetMap / Satélite Esri); tocar no mapa fixa o ponto.
 - **Projetos padronizados por lote** (lista fechada no `config.js`) e **número sequencial por

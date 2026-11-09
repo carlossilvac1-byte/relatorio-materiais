@@ -126,13 +126,13 @@ const IMAGEM = (function () {
   async function desenhar(reg, fotos, escala, altura) {
     escala = escala || 1;
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(W * escala); canvas.height = Math.ceil((altura || 7000) * escala);
+    canvas.width = Math.round(W * escala); canvas.height = Math.ceil((altura || 9000) * escala);
     const ctx = canvas.getContext('2d');
     ctx.scale(escala, escala);
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, canvas.height);
-    const tipoCor = reg.tipo === 'Saída' ? C().saida : C().recebimento;
+    const tipoCor = CONFIG.corTipo(reg.tipo);
     const nc = reg.naoConformidade === 'Sim';
 
     // ---- Faixa superior (identidade EDP) --------------------------
@@ -196,7 +196,15 @@ const IMAGEM = (function () {
     y += altId + 30;
 
     // ---- Dados -----------------------------------------------------
-    y = secao(ctx, y, reg.tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento');
+    y = secao(ctx, y, CONFIG.tituloDados(reg.tipo));
+    if (reg.tipo === 'Fábrica') {
+      y = linha(ctx, y, 'Fabricante', reg.fabricante, { negrito: true });
+      y = linha(ctx, y, 'Tipo de torre', reg.tipoTorre);
+      y = linha(ctx, y, 'Descrição da carga', reg.descricao, { max: 8 });
+      y = linha(ctx, y, 'Nº da NF / Romaneio', reg.nf);
+      y = linha(ctx, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
+      y = linha(ctx, y, 'Canteiro destino', DB.nomeCanteiro(reg));
+    } else {
     y = linha(ctx, y, 'NF', reg.nf, { negrito: true });
     y = linha(ctx, y, 'Fornecedor', reg.fornecedor);
     if (reg.tipo === 'Saída') {
@@ -206,6 +214,7 @@ const IMAGEM = (function () {
       y = linha(ctx, y, 'Canteiro', DB.nomeCanteiro(reg));
     }
     y = linha(ctx, y, 'Descrição do material', reg.descricao, { max: 8 });
+    }
     if (reg.observacoes) y = linha(ctx, y, 'Observações gerais', reg.observacoes, { max: 5 });
     y += 26;
 

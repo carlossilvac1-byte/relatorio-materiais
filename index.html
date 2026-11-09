@@ -80,7 +80,7 @@
     <div class="cartao cartao-vidro cartao-login">
       <div class="login-app">
         <img src="icons/icon-192.png" alt="">
-        <div><b>Relatório Fotográfico de Materiais</b><small>Recebimento e saída • EDP Transmissão Construção</small></div>
+        <div><b>Relatório Fotográfico de Materiais</b><small>Recebimento, saída e fábrica • EDP Transmissão Construção</small></div>
       </div>
       <h1>Bem-vindo!</h1>
       <p class="sub-vidro">Faça seu login para acessar o app.</p>
@@ -285,6 +285,10 @@
           <span class="bv-seta" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg></span>
           <span>Saída</span>
         </button>
+        <button type="button" class="btn btn-primario btn-bloco btn-iniciar bv-fabrica" data-novo-tipo="Fábrica">
+          <span class="bv-seta" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20V10l5 3V10l5 3V6h4l1 4h3v10zM3 20h18"/></svg></span>
+          <span>Fábrica (saída)</span>
+        </button>
       </div>
       <button type="button" class="btn btn-bloco bv-cronograma" id="btn-bv-historico">Ver relatórios registrados</button>
     </div>
@@ -353,6 +357,7 @@
           <div class="radio-grande rf-tipo">
             <label class="opcao opcao-receb"><input type="radio" name="tipo" value="Recebimento"><span>Recebimento</span></label>
             <label class="opcao opcao-saida"><input type="radio" name="tipo" value="Saída"><span>Saída</span></label>
+            <label class="opcao opcao-fabrica"><input type="radio" name="tipo" value="Fábrica"><span>Fábrica <small>saída</small></span></label>
           </div>
           <span class="erro" id="e-tipo"></span>
         </div>
@@ -361,22 +366,42 @@
       <div class="cartao" id="cartao-dados">
         <div class="secao-cab"><span class="secao-num">2</span><div><b id="tit-dados">Dados do material</b><small id="sub-dados">Escolha o tipo para abrir os campos</small></div></div>
         <div id="dados-tipo" hidden>
-          <div class="rf-duas">
+          <div class="rf-duas" id="linha-nf">
             <label class="campo">
-              <span class="rotulo">NF <b class="obrig">*</b></span>
+              <span class="rotulo"><span id="rot-nf">NF</span> <b class="obrig">*</b></span>
               <input type="text" id="f-nf" inputmode="text" autocomplete="off" placeholder="Nº da nota fiscal">
               <span class="erro" id="e-nf"></span>
             </label>
-            <label class="campo">
+            <label class="campo" id="campo-fornecedor">
               <span class="rotulo">Fornecedor <b class="obrig">*</b></span>
               <input type="text" id="f-fornecedor" list="lista-fornecedores" autocomplete="off" placeholder="Razão social / nome">
               <span class="erro" id="e-fornecedor"></span>
             </label>
           </div>
 
+          <div id="bloco-fabrica" hidden>
+            <label class="campo">
+              <span class="rotulo">Fabricante <b class="obrig">*</b></span>
+              <input type="text" id="f-fabricante" list="lista-fabricantes" autocomplete="off" placeholder="Fábrica / fabricante da estrutura">
+              <span class="erro" id="e-fabricante"></span>
+            </label>
+            <label class="campo">
+              <span class="rotulo">Tipo de torre <b class="obrig">*</b></span>
+              <input type="text" id="f-tipo-torre" list="lista-tipos-torre" autocomplete="off" placeholder="Ex.: Autoportante, Estaiada…">
+              <span class="erro" id="e-tipo-torre"></span>
+            </label>
+          </div>
+          <div id="bloco-peso" hidden>
+            <label class="campo">
+              <span class="rotulo">Peso da carga (kg) <b class="obrig">*</b></span>
+              <input type="text" id="f-peso" inputmode="decimal" autocomplete="off" placeholder="Ex.: 18.450,5">
+              <span class="erro" id="e-peso"></span>
+            </label>
+          </div>
+
           <div id="bloco-recebimento">
             <label class="campo">
-              <span class="rotulo">Canteiro <b class="obrig">*</b></span>
+              <span class="rotulo"><span id="rot-canteiro">Canteiro</span> <b class="obrig">*</b></span>
               <select id="f-canteiro" disabled><option value="">Selecione o lote primeiro</option></select>
               <span class="erro" id="e-canteiro"></span>
             </label>
@@ -407,12 +432,12 @@
             </div>
           </div>
 
-          <label class="campo">
-            <span class="rotulo">Descrição do material <b class="obrig">*</b></span>
+          <label class="campo" id="campo-descricao">
+            <span class="rotulo"><span id="rot-descricao">Descrição do material</span> <b class="obrig">*</b></span>
             <textarea id="f-descricao" rows="4" placeholder="Material, quantidade, unidade, volumes, estado da embalagem…"></textarea>
             <span class="erro" id="e-descricao"></span>
           </label>
-          <label class="campo">
+          <label class="campo" id="campo-observacoes">
             <span class="rotulo">Observações gerais</span>
             <textarea id="f-observacoes" rows="3" placeholder="Informações complementares (opcional)."></textarea>
           </label>
@@ -420,7 +445,7 @@
       </div>
 
       <div class="cartao">
-        <div class="secao-cab"><span class="secao-num">3</span><div><b>Registro fotográfico</b><small id="sub-fotos">Até 6 fotos, cada uma com a sua observação</small></div></div>
+        <div class="secao-cab"><span class="secao-num">3</span><div><b>Registro fotográfico</b><small id="sub-fotos">Até 10 fotos, cada uma com a sua observação</small></div></div>
         <div id="slots-fotos" class="rf-slots"></div>
         <p class="apoio pequena">As fotos são reduzidas para 1600 px e cerca de 300 KB antes de serem gravadas no aparelho.</p>
         <span class="erro" id="e-fotos"></span>
@@ -483,12 +508,14 @@
         <div class="rf-kpi"><b id="k-total">0</b><span>Relatórios</span></div>
         <div class="rf-kpi k-receb"><b id="k-receb">0</b><span>Recebimentos</span></div>
         <div class="rf-kpi k-saida"><b id="k-saida">0</b><span>Saídas</span></div>
+        <div class="rf-kpi k-fabrica"><b id="k-fabrica">0</b><span>Fábrica</span></div>
         <div class="rf-kpi k-nc"><b id="k-nc">0</b><span>Com NC</span></div>
       </div>
       <div class="nc-filtros" role="tablist" aria-label="Tipo">
         <button type="button" class="nc-chip ativa" data-chip="">Todos <i>0</i></button>
         <button type="button" class="nc-chip" data-chip="Recebimento">Recebimento <i>0</i></button>
         <button type="button" class="nc-chip" data-chip="Saída">Saída <i>0</i></button>
+        <button type="button" class="nc-chip" data-chip="Fábrica">Fábrica <i>0</i></button>
         <button type="button" class="nc-chip c-venc" data-chip="NC">Com NC <i>0</i></button>
       </div>
       <label class="campo">
@@ -708,6 +735,8 @@
 
 <datalist id="lista-fornecedores"></datalist>
 <datalist id="lista-transportadoras"></datalist>
+<datalist id="lista-fabricantes"></datalist>
+<datalist id="lista-tipos-torre"></datalist>
 
 <!-- Entradas de arquivo das fotos (acionadas pelos botões dos espaços) -->
 <input type="file" id="in-camera" accept="image/*" capture="environment" hidden>
