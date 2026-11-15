@@ -306,7 +306,7 @@ const AUTH = (function () {
 
     // 1) Auth
     // O link de confirmação do e-mail volta para o próprio app (e não para a raiz do site).
-    const voltar = window.location.origin + window.location.pathname;
+    const voltar = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
     const r = await fetchTimeout(base() + '/auth/v1/signup?redirect_to=' + encodeURIComponent(voltar), {
       method: 'POST',
       headers: cabecalhosAnon(),
@@ -579,14 +579,13 @@ const AUTH = (function () {
   async function recuperarSenha(email) {
     if (modoLocal()) throw new Error('MODO_LOCAL');
     if (!navigator.onLine) throw new Error('SEM_REDE');
-    const r = await fetchTimeout(base() + '/auth/v1/recover', {
+    // O endereço de volta vai na URL (?redirect_to=): no corpo o Supabase ignora
+    // e devolve para a raiz do domínio (github.io/ → página 404).
+    const voltar = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    const r = await fetchTimeout(base() + '/auth/v1/recover?redirect_to=' + encodeURIComponent(voltar), {
       method: 'POST',
       headers: cabecalhosAnon(),
-      body: JSON.stringify({
-        email: String(email || '').trim().toLowerCase(),
-        // Volta para o próprio app depois de redefinir a senha
-        redirect_to: window.location.origin + window.location.pathname
-      })
+      body: JSON.stringify({ email: String(email || '').trim().toLowerCase() })
     }, 20000);
     if (!r.ok && r.status !== 200) {
       const j = await r.json().catch(() => ({}));

@@ -1,3 +1,3 @@
 Relatório Fotográfico de Materiais | EDP Transmissão Construção
-versão publicada: 1.3.1 (correção: o link "Esqueci minha senha" agora abre a tela para criar a nova senha)
+versão publicada: 1.3.2 (correção: o link do e-mail de redefinição de senha volta para o app, e não para a raiz do site)
 atualizado em: 2026-11-14
