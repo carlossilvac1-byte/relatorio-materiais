@@ -32,7 +32,7 @@ const APP = (function () {
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.prototype.slice.call(document.querySelectorAll(sel));
 
-  const TELAS_PUBLICAS = ['tela-login', 'tela-cadastro', 'tela-recuperar'];
+  const TELAS_PUBLICAS = ['tela-login', 'tela-cadastro', 'tela-recuperar', 'tela-nova-senha'];
   const TELAS_VISUAL_ACESSO = TELAS_PUBLICAS.concat(['tela-boasvindas']);
   const N_SLOTS = () => CONFIG.limites.fotosRelatorio;
 
@@ -457,6 +457,49 @@ const APP = (function () {
         ? 'Sem servidor configurado, a recuperação por e-mail não existe. A conta é deste aparelho: ' +
           'crie outra com um e-mail diferente ou peça ao administrador do aparelho.'
         : msg === 'SEM_REDE' ? 'Recuperação de senha exige internet. Conecte-se à rede e tente novamente.' : msg, 'erro', 12);
+    } finally {
+      carregando(false);
+    }
+  }
+
+  async function salvarNovaSenha() {
+    limparErros('#tela-nova-senha');
+    const senha = $('#ns-senha').value, conf = $('#ns-senha2').value;
+    let erro = false;
+    if (!AUTH.validarSenha(senha)) { marcarErro('ns-senha', 'Mínimo de 8 caracteres, com pelo menos uma letra e um número.'); erro = true; }
+    if (senha !== conf) { marcarErro('ns-senha2', 'A confirmação não confere.'); erro = true; }
+    if (erro) return;
+    if (!estado.tokenRecuperacao) { aviso('Link de redefinição não encontrado. Peça um novo em "Esqueci minha senha".', 'erro', 10); mostrarTela('tela-recuperar'); return; }
+    carregando(true, 'Salvando a nova senha…');
+    try {
+      const email = await AUTH.definirNovaSenha(estado.tokenRecuperacao, senha);
+      estado.tokenRecuperacao = null;
+      $('#ns-senha').value = ''; $('#ns-senha2').value = '';
+      if (email) {
+        $('#login-email').value = email;
+        try {
+          await AUTH.entrarAuto(email, senha, true);
+          aviso('Senha alterada com sucesso.', 'sucesso', 6);
+          await aoAutenticar();
+          return;
+        } catch (e2) {
+          const m2 = String(e2.message || e2);
+          mostrarTela('tela-login');
+          if (m2 === 'PENDENTE') aviso('Senha alterada. Seu cadastro está aguardando a liberação do administrador.', 'alerta', 0);
+          else aviso('Senha alterada. ' + m2, 'alerta', 10);
+          return;
+        }
+      }
+      mostrarTela('tela-login');
+      aviso('Senha alterada. Entre com seu e-mail e a nova senha.', 'sucesso', 10);
+    } catch (e) {
+      const msg = String(e.message || e);
+      if (msg === 'LINK_EXPIRADO') {
+        estado.tokenRecuperacao = null;
+        mostrarTela('tela-recuperar');
+        aviso('O link expirou ou já foi usado. Informe o e-mail e peça um novo link.', 'erro', 0);
+      } else if (msg === 'SEM_REDE') aviso('Sem internet. Conecte-se e tente de novo.', 'erro', 8);
+      else aviso(msg, 'erro', 10);
     } finally {
       carregando(false);
     }
@@ -1867,6 +1910,9 @@ const APP = (function () {
     $('#voltar-login-2').addEventListener('click', () => mostrarTela('tela-login'));
     $('#btn-cadastrar').addEventListener('click', fazerCadastro);
     $('#btn-recuperar').addEventListener('click', fazerRecuperacao);
+    $('#btn-nova-senha').addEventListener('click', salvarNovaSenha);
+    $('#ns-senha2').addEventListener('keydown', e => { if (e.key === 'Enter') salvarNovaSenha(); });
+    $('#ns-voltar').addEventListener('click', () => { estado.tokenRecuperacao = null; mostrarTela('tela-login'); });
     $('#btn-sair').addEventListener('click', sairDaConta);
     $('#btn-abrir-admin').addEventListener('click', () => mostrarTela('tela-admin'));
     $('#btn-recarregar-usuarios').addEventListener('click', carregarUsuarios);
@@ -2035,7 +2081,11 @@ const APP = (function () {
       aviso('Não foi possível abrir o banco local: ' + (e.message || e) + '. Em janelas anônimas o armazenamento é bloqueado.', 'erro', 0);
     }
 
-    const veioDaConfirmacao = /type=signup|access_token=/.test(window.location.hash);
+    // Links do e-mail (#...): confirmação de cadastro, redefinição de senha ou link vencido
+    const hashParams = new URLSearchParams(String(window.location.hash || '').replace(/^#/, ''));
+    const tokenRecuperacao = hashParams.get('type') === 'recovery' ? hashParams.get('access_token') : null;
+    const erroLink = hashParams.get('error_code') || hashParams.get('error');
+    const veioDaConfirmacao = !tokenRecuperacao && !erroLink && /type=signup|access_token=/.test(window.location.hash);
     if (window.location.hash) history.replaceState(null, '', window.location.pathname);
 
     await AUTH.iniciar();
@@ -2056,6 +2106,13 @@ const APP = (function () {
               'já salvos neste aparelho serão mantidos e enviados. Se ainda não tem cadastro na base, toque em "Criar cadastro".', 'alerta', 0);
       }
       if (veioDaConfirmacao) aviso('E-mail confirmado. Entre com seu e-mail e senha.', 'sucesso', 10);
+      if (erroLink) aviso('O link do e-mail expirou ou já foi usado. Toque em "Esqueci minha senha" e peça um novo link.', 'erro', 0);
+    }
+    // Veio do link "Esqueci minha senha": abre a tela para criar a nova senha
+    if (tokenRecuperacao) {
+      estado.tokenRecuperacao = tokenRecuperacao;
+      mostrarTela('tela-nova-senha');
+      setTimeout(() => { try { $('#ns-senha').focus(); } catch (e) { /* segue */ } }, 300);
     }
 
     setInterval(atualizarBadges, 15000);

@@ -1,3 +1,3 @@
 Relatório Fotográfico de Materiais | EDP Transmissão Construção
-versão publicada: 1.3.0 (novo tipo Fábrica — saída de material na fábrica: fabricante, tipo de torre, carga, NF/romaneio, peso e canteiro destino)
-atualizado em: 2026-11-09
+versão publicada: 1.3.1 (correção: o link "Esqueci minha senha" agora abre a tela para criar a nova senha)
+atualizado em: 2026-11-14

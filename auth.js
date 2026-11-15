@@ -595,6 +595,29 @@ const AUTH = (function () {
     return true;
   }
 
+  /**
+   * Define a nova senha com o token do link de redefinição (e-mail).
+   * Devolve o e-mail da conta, para entrar em seguida.
+   */
+  async function definirNovaSenha(tokenRecuperacao, novaSenha) {
+    if (!navigator.onLine) throw new Error('SEM_REDE');
+    const r = await fetchTimeout(base() + '/auth/v1/user', {
+      method: 'PUT',
+      headers: Object.assign(cabecalhosAnon(), { Authorization: 'Bearer ' + tokenRecuperacao }),
+      body: JSON.stringify({ password: novaSenha })
+    }, 20000);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const cod = String(j.error_code || j.code || '');
+      const msg = String(j.msg || j.message || j.error_description || '').toLowerCase();
+      if (cod === 'same_password' || msg.indexOf('different from the old') !== -1) throw new Error('A nova senha precisa ser diferente da anterior.');
+      if (cod === 'weak_password' || msg.indexOf('weak') !== -1) throw new Error('Senha fraca. Use pelo menos 8 caracteres, com letras e números.');
+      if (r.status === 401 || r.status === 403 || msg.indexOf('expired') !== -1 || msg.indexOf('invalid') !== -1) throw new Error('LINK_EXPIRADO');
+      throw new Error('Não foi possível salvar a nova senha: ' + (j.msg || j.message || r.status));
+    }
+    return (j.email || (j.user && j.user.email) || '').toLowerCase();
+  }
+
   /* -------------------------------------------------------------------
    * REVALIDAÇÃO SILENCIOSA
    * -------------------------------------------------------------------
@@ -825,6 +848,7 @@ const AUTH = (function () {
     entrarAuto: entrarAuto,
     sair: sair,
     recuperarSenha: recuperarSenha,
+    definirNovaSenha: definirNovaSenha,
     revalidar: revalidar,
     renovarValidade: renovarValidade,
 
