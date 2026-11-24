@@ -264,11 +264,16 @@ const PDFGEN = (function () {
 
   /** Dados do recebimento / da saída. */
   function blocoDados(doc, y, reg) {
-    y = secaoBloco(doc, y, CONFIG.tituloDados(reg.tipo), 20);
+    y = secaoBloco(doc, y, CONFIG.tituloDados(reg.tipo, CONFIG.categoriaFabrica(reg)), 20);
     y = linha(doc, y, 'Nº do relatório', DB.numeroExibicao(reg), { negrito: true });
     if (reg.tipo === 'Fábrica') {
-      y = linha(doc, y, 'Fabricante', reg.fabricante);
-      y = linha(doc, y, 'Tipo de torre', reg.tipoTorre);
+      if (CONFIG.categoriaFabrica(reg) === 'Subestação') {
+        y = linha(doc, y, 'Fornecedor', reg.fabricante);
+        y = linha(doc, y, 'Tipo de equipamento', reg.tipoEquipamento);
+      } else {
+        y = linha(doc, y, 'Fabricante', reg.fabricante);
+        y = linha(doc, y, 'Tipo de torre', reg.tipoTorre);
+      }
       y = linha(doc, y, 'Descrição da carga', reg.descricao);
       y = linha(doc, y, 'Nº da NF / Romaneio', reg.nf);
       y = linha(doc, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });

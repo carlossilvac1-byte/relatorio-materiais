@@ -698,11 +698,54 @@ const APP = (function () {
     $('#tit-dados').textContent = tipo ? CONFIG.tituloDados(tipo) : 'Dados do material';
     $('#sub-dados').textContent = tipo === 'Recebimento' ? 'NF, fornecedor, canteiro e descrição do material'
                                 : tipo === 'Saída' ? 'NF, fornecedor, transportadora, trecho, torre e descrição'
-                                : fab ? 'Fabricante, tipo de torre, carga, NF/romaneio, peso e canteiro destino'
+                                : fab ? 'Materiais de Linha ou de Subestação, carga, NF/romaneio, peso e canteiro destino'
                                 : 'Escolha o tipo para abrir os campos';
     $('#cartao-dados').dataset.tipo = tipo;
     if (tipo) marcarErro('campo-tipo', null);
+    aplicarCategoriaFabrica();
     $('#titulo-form').textContent = (estado.ehNovo ? 'Novo relatório' : 'Editar relatório') + (tipo ? ' — ' + tipo : '');
+  }
+
+  // ---------- Fábrica: Materiais de Linha x Materiais de Subestação ----------
+  const NOVO = '__novo__';
+  function categoriaFabEscolhida() {
+    const r = $$('input[name=catfab]').filter(x => x.checked)[0];
+    return r ? r.value : '';
+  }
+  function aplicarCategoriaFabrica() {
+    const fab = tipoEscolhido() === 'Fábrica';
+    const cat = fab ? categoriaFabEscolhida() : '';
+    $$('.rf-cat-fab .opcao').forEach(o => o.classList.toggle('escolhida', o.querySelector('input').checked));
+    $('#fab-linha').hidden = cat !== 'Linha';
+    $('#fab-se').hidden = cat !== 'Subestação';
+    if (cat) marcarErro('campo-cat-fab', null);
+    if (fab) $('#tit-dados').textContent = CONFIG.tituloDados('Fábrica', cat);
+  }
+  /** Lista com as opções padrão + as já cadastradas + "Cadastrar novo". */
+  function montarSelectComNovo(idSel, valores, rotuloNovo, atual) {
+    const sel = $('#' + idSel);
+    const lista = valores.slice();
+    if (atual && lista.indexOf(atual) === -1) lista.push(atual);
+    sel.innerHTML = '<option value="">Selecione…</option>' +
+      lista.map(v => '<option' + (v === atual ? ' selected' : '') + '>' + escapar(v) + '</option>').join('') +
+      '<option value="' + NOVO + '">+ ' + escapar(rotuloNovo) + '</option>';
+    aplicarNovo(idSel);
+  }
+  function aplicarNovo(idSel) {
+    const novo = $('#' + idSel).value === NOVO;
+    const inp = $('#' + idSel + '-novo');
+    inp.hidden = !novo;
+    if (novo) setTimeout(() => { try { inp.focus(); } catch (e) { /* segue */ } }, 50);
+  }
+  function valorComNovo(idSel) {
+    const v = $('#' + idSel).value;
+    return v === NOVO ? $('#' + idSel + '-novo').value.trim() : v;
+  }
+  async function montarListasSubestacao(fornecedorAtual, equipamentoAtual) {
+    const filtroSE = r => r.tipo === 'Fábrica' && r.categoriaFabrica === 'Subestação';
+    montarSelectComNovo('f-se-fornecedor', await DB.sugestoes('fabricante', CONFIG.sugestoes.fornecedoresSE, filtroSE), 'Cadastrar novo fornecedor', fornecedorAtual || '');
+    montarSelectComNovo('f-equipamento', await DB.sugestoes('tipoEquipamento', CONFIG.sugestoes.equipamentosSE, filtroSE), 'Cadastrar novo tipo de equipamento', equipamentoAtual || '');
+    $('#f-se-fornecedor-novo').value = ''; $('#f-equipamento-novo').value = '';
   }
 
   function ncEscolhida() {
@@ -738,7 +781,7 @@ const APP = (function () {
   async function atualizarSugestoes() {
     preencherDatalist('lista-fornecedores', await DB.sugestoes('fornecedor', CONFIG.sugestoes.fornecedores));
     preencherDatalist('lista-transportadoras', await DB.sugestoes('transportadora', CONFIG.sugestoes.transportadoras));
-    preencherDatalist('lista-fabricantes', await DB.sugestoes('fabricante', CONFIG.sugestoes.fabricantes));
+    preencherDatalist('lista-fabricantes', await DB.sugestoes('fabricante', CONFIG.sugestoes.fabricantes, r => CONFIG.categoriaFabrica(r) !== 'Subestação'));
     preencherDatalist('lista-tipos-torre', await DB.sugestoes('tipoTorre', CONFIG.sugestoes.tiposTorre));
   }
 
@@ -769,8 +812,13 @@ const APP = (function () {
     $('#f-transportadora').value = reg.transportadora || '';
     $('#f-trecho').value = reg.trecho || '';
     $('#f-torre').value = reg.torre || '';
-    $('#f-fabricante').value = reg.fabricante || '';
+    // Registro novo começa sem categoria (a pessoa escolhe); Fábrica antiga = Linha
+    const catFab = reg.categoriaFabrica || (!estado.ehNovo ? CONFIG.categoriaFabrica(reg) : '');
+    $$('input[name=catfab]').forEach(x => { x.checked = reg.tipo === 'Fábrica' && x.value === catFab; });
+    $('#f-fabricante').value = catFab === 'Subestação' ? '' : (reg.fabricante || '');
     $('#f-tipo-torre').value = reg.tipoTorre || '';
+    await montarListasSubestacao(catFab === 'Subestação' ? reg.fabricante : '', reg.tipoEquipamento);
+    aplicarCategoriaFabrica();
     $('#f-peso').value = (reg.pesoCarga || reg.pesoCarga === 0) ? Number(reg.pesoCarga).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '';
     $('#f-descricao').value = reg.descricao || '';
     $('#f-observacoes').value = reg.observacoes || '';
@@ -875,8 +923,16 @@ const APP = (function () {
     const tipo = tipoEscolhido();
     if (!tipo) { marcarErro('campo-tipo', 'Escolha Recebimento, Saída ou Fábrica.'); $('#e-tipo').textContent = 'Escolha Recebimento, Saída ou Fábrica.'; erros.push('Tipo'); }
     else if (tipo === 'Fábrica') {
-      if (!$('#f-fabricante').value.trim()) { marcarErro('f-fabricante', 'Informe o fabricante.'); erros.push('Fabricante'); }
-      if (!$('#f-tipo-torre').value.trim()) { marcarErro('f-tipo-torre', 'Informe o tipo de torre.'); erros.push('Tipo de torre'); }
+      const cat = categoriaFabEscolhida();
+      if (!cat) { marcarErro('campo-cat-fab', 'Escolha Materiais de Linha ou Materiais de Subestação.'); $('#e-cat-fab').textContent = 'Escolha Materiais de Linha ou Materiais de Subestação.'; erros.push('Materiais (Linha/Subestação)'); }
+      if (cat === 'Linha') {
+        if (!$('#f-fabricante').value.trim()) { marcarErro('f-fabricante', 'Informe o fabricante.'); erros.push('Fabricante'); }
+        if (!$('#f-tipo-torre').value.trim()) { marcarErro('f-tipo-torre', 'Informe o tipo de torre.'); erros.push('Tipo de torre'); }
+      }
+      if (cat === 'Subestação') {
+        if (!valorComNovo('f-se-fornecedor')) { marcarErro('f-se-fornecedor', $('#f-se-fornecedor').value === NOVO ? 'Digite o nome do novo fornecedor.' : 'Selecione o fornecedor.'); erros.push('Fornecedor'); }
+        if (!valorComNovo('f-equipamento')) { marcarErro('f-equipamento', $('#f-equipamento').value === NOVO ? 'Digite o novo tipo de equipamento.' : 'Selecione o tipo de equipamento.'); erros.push('Tipo de equipamento'); }
+      }
       if ($('#f-descricao').value.trim().length < 3) { marcarErro('f-descricao', 'Descreva a carga.'); erros.push('Descrição da carga'); }
       if (!$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe o nº da NF ou do romaneio.'); erros.push('NF/Romaneio'); }
       const peso = lerPeso($('#f-peso').value);
@@ -941,8 +997,16 @@ const APP = (function () {
     r.transportadora = $('#f-transportadora').value.trim();
     r.trecho = $('#f-trecho').value.trim();
     r.torre = $('#f-torre').value.trim();
-    r.fabricante = $('#f-fabricante').value.trim();
-    r.tipoTorre = $('#f-tipo-torre').value.trim();
+    r.categoriaFabrica = r.tipo === 'Fábrica' ? categoriaFabEscolhida() : '';
+    if (r.categoriaFabrica === 'Subestação') {
+      r.fabricante = valorComNovo('f-se-fornecedor');          // fornecedor do equipamento
+      r.tipoEquipamento = valorComNovo('f-equipamento');
+      r.tipoTorre = '';
+    } else {
+      r.fabricante = $('#f-fabricante').value.trim();
+      r.tipoTorre = $('#f-tipo-torre').value.trim();
+      r.tipoEquipamento = '';
+    }
     const peso = lerPeso($('#f-peso').value);
     r.pesoCarga = (peso === null || isNaN(peso)) ? null : peso;
     r.descricao = $('#f-descricao').value.trim();
@@ -1292,7 +1356,7 @@ const APP = (function () {
         '</div>' +
         (r.tipo === 'Fábrica'
           ? '<div class="linha2"><b>' + escapar(r.fabricante || r.fornecedor) + '</b> — NF/Romaneio ' + escapar(r.nf) + '</div>' +
-            '<div class="linha3">' + escapar([r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
+            '<div class="linha3">' + escapar(['Materiais de ' + CONFIG.categoriaFabrica(r), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
           : '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
             '<div class="linha3">' + escapar(DB.localResumo(r)) + (r.tipo === 'Saída' && r.transportadora ? ' • ' + escapar(r.transportadora) : '') + '</div>') +
         '<div class="linha3 rf-desc">' + escapar((r.descricao || '').slice(0, 120)) + '</div>' +
@@ -1395,7 +1459,11 @@ const APP = (function () {
       ['Tipo', r.tipo === 'Fábrica' ? 'Fábrica (saída)' : r.tipo]
     ];
     if (r.tipo === 'Fábrica') {
-      linhas.push(['Fabricante', r.fabricante], ['Tipo de torre', r.tipoTorre], ['Descrição da carga', r.descricao],
+      const se = CONFIG.categoriaFabrica(r) === 'Subestação';
+      linhas.push(['Materiais', 'Materiais de ' + CONFIG.categoriaFabrica(r)]);
+      if (se) linhas.push(['Fornecedor', r.fabricante], ['Tipo de equipamento', r.tipoEquipamento]);
+      else linhas.push(['Fabricante', r.fabricante], ['Tipo de torre', r.tipoTorre]);
+      linhas.push(['Descrição da carga', r.descricao],
                   ['NF / Romaneio', r.nf], ['Peso da carga', CONFIG.pesoFormatado(r.pesoCarga)], ['Canteiro destino', DB.nomeCanteiro(r)]);
     } else {
       linhas.push(['NF', r.nf], ['Fornecedor', r.fornecedor]);
@@ -1944,6 +2012,8 @@ const APP = (function () {
     $('#f-data').addEventListener('change', atualizarNumero);
     $('#f-canteiro').addEventListener('change', () => { $('#campo-canteiro-outro').hidden = $('#f-canteiro').value !== 'Outro'; });
     $$('input[name=tipo]').forEach(r => r.addEventListener('change', aplicarTipo));
+    $$('input[name=catfab]').forEach(r => r.addEventListener('change', aplicarCategoriaFabrica));
+    ['f-se-fornecedor', 'f-equipamento'].forEach(id => $('#' + id).addEventListener('change', () => { aplicarNovo(id); marcarErro(id, null); }));
     $$('input[name=nc]').forEach(r => r.addEventListener('change', () => {
       aplicarNC();
       if (ncEscolhida() === 'Sim') setTimeout(() => $('#f-descricao-nc').focus(), 60);

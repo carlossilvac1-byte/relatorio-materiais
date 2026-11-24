@@ -188,3 +188,9 @@ body.modo-publico .cartao-vidro .btn-iniciar.bv-fabrica { background: linear-gra
 #cartao-dados[data-tipo="Fábrica"] #bloco-recebimento { order: 5; }
 #cartao-dados[data-tipo="Fábrica"] #campo-observacoes { order: 6; }
 #cartao-dados[data-tipo="Fábrica"] #bloco-saida { display: none; }
+
+/* v1.4.0 — Fábrica: Materiais de Linha x Subestação */
+.radio-grande.rf-cat-fab { grid-template-columns: 1fr 1fr; }
+.rf-cat-fab .opcao { min-width: 0; text-align: center; }
+.rf-cat-fab .opcao.escolhida { border-color: var(--fabrica); background: var(--fabrica-claro); color: var(--fabrica); }
+.rf-novo { margin-top: 8px; }

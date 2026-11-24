@@ -410,16 +410,40 @@
           </div>
 
           <div id="bloco-fabrica" hidden>
-            <label class="campo">
-              <span class="rotulo">Fabricante <b class="obrig">*</b></span>
-              <input type="text" id="f-fabricante" list="lista-fabricantes" autocomplete="off" placeholder="Fábrica / fabricante da estrutura">
-              <span class="erro" id="e-fabricante"></span>
-            </label>
-            <label class="campo">
-              <span class="rotulo">Tipo de torre <b class="obrig">*</b></span>
-              <input type="text" id="f-tipo-torre" list="lista-tipos-torre" autocomplete="off" placeholder="Ex.: Autoportante, Estaiada…">
-              <span class="erro" id="e-tipo-torre"></span>
-            </label>
+            <div class="campo" id="campo-cat-fab">
+              <span class="rotulo">Materiais <b class="obrig">*</b></span>
+              <div class="radio-grande rf-cat-fab" role="radiogroup" aria-label="Categoria dos materiais">
+                <label class="opcao"><input type="radio" name="catfab" value="Linha"><span>Materiais de Linha</span></label>
+                <label class="opcao"><input type="radio" name="catfab" value="Subestação"><span>Materiais de Subestação</span></label>
+              </div>
+              <span class="erro" id="e-cat-fab"></span>
+            </div>
+            <div id="fab-linha" hidden>
+              <label class="campo">
+                <span class="rotulo">Fabricante <b class="obrig">*</b></span>
+                <input type="text" id="f-fabricante" list="lista-fabricantes" autocomplete="off" placeholder="Fábrica / fabricante da estrutura">
+                <span class="erro" id="e-fabricante"></span>
+              </label>
+              <label class="campo">
+                <span class="rotulo">Tipo de torre <b class="obrig">*</b></span>
+                <input type="text" id="f-tipo-torre" list="lista-tipos-torre" autocomplete="off" placeholder="Ex.: Autoportante, Estaiada…">
+                <span class="erro" id="e-tipo-torre"></span>
+              </label>
+            </div>
+            <div id="fab-se" hidden>
+              <label class="campo">
+                <span class="rotulo">Fornecedor <b class="obrig">*</b></span>
+                <select id="f-se-fornecedor"></select>
+                <input type="text" id="f-se-fornecedor-novo" class="rf-novo" autocomplete="off" placeholder="Nome do novo fornecedor" hidden>
+                <span class="erro" id="e-se-fornecedor"></span>
+              </label>
+              <label class="campo">
+                <span class="rotulo">Tipo de equipamento <b class="obrig">*</b></span>
+                <select id="f-equipamento"></select>
+                <input type="text" id="f-equipamento-novo" class="rf-novo" autocomplete="off" placeholder="Nome do novo tipo de equipamento" hidden>
+                <span class="erro" id="e-equipamento"></span>
+              </label>
+            </div>
           </div>
           <div id="bloco-peso" hidden>
             <label class="campo">

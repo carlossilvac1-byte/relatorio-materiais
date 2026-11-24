@@ -138,6 +138,8 @@ const SYNC = (function () {
     if (reg.tipo === 'Fábrica') {
       linha.fabricante = reg.fabricante || null;
       linha.tipo_torre = reg.tipoTorre || null;
+      linha.categoria_fabrica = CONFIG.categoriaFabrica(reg);
+      linha.tipo_equipamento = reg.tipoEquipamento || null;
       linha.peso_carga = (reg.pesoCarga || reg.pesoCarga === 0) ? Number(reg.pesoCarga) : null;
     }
     const postar = async (corpo) => {
@@ -159,7 +161,7 @@ const SYNC = (function () {
                         '. Abra o relatório, corrija o "Nº do registro" e salve de novo.');
       }
       if (r.status === 401) throw new Error('SESSAO_EXPIRADA');
-      if (reg.tipo === 'Fábrica' && /fabricante|tipo_torre|peso_carga|relatorios_tipo_valido|PGRST204|23514/i.test(t)) {
+      if (reg.tipo === 'Fábrica' && /fabricante|tipo_torre|peso_carga|categoria_fabrica|tipo_equipamento|relatorios_tipo_valido|PGRST204|23514/i.test(t)) {
         throw new Error('SEM_FABRICA');
       }
       if (r.status === 404 || /PGRST205|relation .* does not exist/i.test(t)) {

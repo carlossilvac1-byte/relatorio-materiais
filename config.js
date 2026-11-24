@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.3.2',
+    versao: '1.4.0',
     logoOficialNoPacote: true
   },
 
@@ -148,6 +148,9 @@ const CONFIG = {
     fornecedores: ['Brametal'],
     transportadoras: ['TDM Transporte'],
     fabricantes: ['Brametal'],
+    // Fábrica — Materiais de Subestação ("Cadastrar novo" sempre disponível no formulário)
+    fornecedoresSE: ['COMTRAFO'],
+    equipamentosSE: ['Transformador', 'Compensador síncrono', 'Reator Imerso em Óleo', 'Reator com núcleo de ar'],
     tiposTorre: ['Autoportante', 'Estaiada', 'Ancoragem', 'Suspensão', 'Transposição', 'Fim de linha']
   },
 
@@ -253,8 +256,13 @@ CONFIG.corTipo = function (tipo) {
   return tipo === 'Fábrica' ? CONFIG.cores.fabrica : tipo === 'Saída' ? CONFIG.cores.saida : CONFIG.cores.recebimento;
 };
 /** Título da seção de dados conforme o tipo. */
-CONFIG.tituloDados = function (tipo) {
-  return tipo === 'Fábrica' ? 'Dados da saída da fábrica' : tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento';
+CONFIG.tituloDados = function (tipo, categoria) {
+  if (tipo === 'Fábrica') return 'Dados da saída da fábrica' + (categoria ? ' — Materiais de ' + categoria : '');
+  return tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento';
+};
+/** Categoria da saída da fábrica (registros antigos, sem categoria, são de Linha). */
+CONFIG.categoriaFabrica = function (r) {
+  return r && r.tipo === 'Fábrica' ? (r.categoriaFabrica === 'Subestação' ? 'Subestação' : 'Linha') : '';
 };
 /** Peso em kg, no formato brasileiro (ex.: 18.450,5 kg). */
 CONFIG.pesoFormatado = function (kg) {

@@ -357,6 +357,8 @@ const DB = (function () {
       torre: '',
       fabricante: '',
       tipoTorre: '',
+      categoriaFabrica: '',
+      tipoEquipamento: '',
       pesoCarga: null,
       descricao: '',
       naoConformidade: 'Não',
@@ -399,7 +401,7 @@ const DB = (function () {
     if (registro.tipo === 'Recebimento' || registro.tipo === 'Fábrica') { registro.transportadora = ''; registro.trecho = ''; registro.torre = ''; }
     if (registro.tipo === 'Saída') { registro.canteiro = ''; registro.canteiroOutro = ''; }
     if (registro.tipo === 'Fábrica') registro.fornecedor = registro.fabricante || '';   // fabricante = fornecedor da carga
-    else { registro.fabricante = ''; registro.tipoTorre = ''; registro.pesoCarga = null; }
+    else { registro.fabricante = ''; registro.tipoTorre = ''; registro.pesoCarga = null; registro.categoriaFabrica = ''; registro.tipoEquipamento = ''; }
     if (registro.naoConformidade !== 'Sim') registro.descricaoNC = '';
     // Numeração por projeto: trocou de projeto, ganha número novo no novo projeto.
     if (registro.seqManual) registro.seq = registro.seqManual;          // nº informado pela Fiscalização
@@ -473,6 +475,8 @@ const DB = (function () {
       torre: l.torre || '',
       fabricante: l.fabricante || '',
       tipoTorre: l.tipo_torre || '',
+      categoriaFabrica: l.categoria_fabrica || (l.tipo === 'Fábrica' ? 'Linha' : ''),
+      tipoEquipamento: l.tipo_equipamento || '',
       pesoCarga: (l.peso_carga === null || l.peso_carga === undefined) ? null : Number(l.peso_carga),
       descricao: l.descricao || '',
       naoConformidade: l.nao_conformidade ? 'Sim' : 'Não',
@@ -568,7 +572,7 @@ const DB = (function () {
   /** Local resumido: canteiro (recebimento) ou trecho/torre (saída). */
   function localResumo(r) {
     if (r.tipo === 'Fábrica') {
-      return ['Destino: ' + nomeCanteiro(r), r.tipoTorre].filter(Boolean).join(' • ');
+      return ['Destino: ' + nomeCanteiro(r), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre].filter(Boolean).join(' • ');
     }
     if (r.tipo === 'Saída') {
       return [r.trecho ? 'Trecho ' + r.trecho : '', r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' • ');
@@ -598,7 +602,7 @@ const DB = (function () {
       const t = String(filtros.texto).toLowerCase().trim();
       lista = lista.filter(r => [
         r.numero, nomeProjeto(r), r.lote, r.tipo, r.nf, r.fornecedor, nomeCanteiro(r), r.transportadora,
-        r.trecho, r.torre, r.fabricante, r.tipoTorre, r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
+        r.trecho, r.torre, r.fabricante, r.tipoTorre, r.tipoEquipamento, CONFIG.categoriaFabrica(r) ? 'Materiais de ' + CONFIG.categoriaFabrica(r) : '', r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
       ].join(' ').toLowerCase().indexOf(t) !== -1);
     }
     lista.sort((a, b) => (b.dataRelatorio + b.criadoEm).localeCompare(a.dataRelatorio + a.criadoEm));
@@ -606,10 +610,10 @@ const DB = (function () {
   }
 
   /** Valores já digitados num campo (fornecedor, transportadora…) + sugestões do config. */
-  async function sugestoes(campo, extras) {
+  async function sugestoes(campo, extras, filtro) {
     const lista = await db.relatorios.toArray();
     const s = new Set((extras || []).filter(Boolean));
-    lista.forEach(r => { if (r[campo]) s.add(String(r[campo]).trim()); });
+    lista.forEach(r => { if (r[campo] && !r.excluido && (!filtro || filtro(r))) s.add(String(r[campo]).trim()); });
     return Array.from(s).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   }
 
@@ -794,7 +798,7 @@ const DB = (function () {
     const lista = await listarRelatorios(Object.assign({}, filtros || {}, { incluirExcluidos: false }));
     const nFotos = CONFIG.limites.fotosRelatorio;
     const cab = ['Numero', 'Tipo', 'Data', 'Projeto', 'Lote', 'NF', 'Fornecedor', 'Canteiro',
-                 'Transportadora', 'Trecho', 'Torre', 'Fabricante', 'Tipo de torre', 'Peso da carga (kg)',
+                 'Transportadora', 'Trecho', 'Torre', 'Materiais (fabrica)', 'Fabricante / fornecedor (fabrica)', 'Tipo de torre', 'Tipo de equipamento', 'Peso da carga (kg)',
                  'Descricao do material / carga', 'Nao conformidade',
                  'Descricao da NC', 'Observacoes'];
     for (let i = 1; i <= nFotos; i++) cab.push('Obs foto ' + i);
@@ -807,7 +811,7 @@ const DB = (function () {
       const nc = fotos.length ? fotos.filter(f => f.vinculo) : (r.fotosRemotas || []).filter(m => m.vinculo);
       const cols = [numeroRelatorio(r) || 'pendente', r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
         r.tipo !== 'Saída' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre,
-        r.fabricante || '', r.tipoTorre || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
+        CONFIG.categoriaFabrica(r) ? 'Materiais de ' + CONFIG.categoriaFabrica(r) : '', r.fabricante || '', r.tipoTorre || '', r.tipoEquipamento || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
         r.naoConformidade, r.descricaoNC, r.observacoes];
       for (let i = 1; i <= nFotos; i++) {
         const f = gerais.find(x => x.slot === i);

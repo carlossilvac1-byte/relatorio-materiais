@@ -196,10 +196,15 @@ const IMAGEM = (function () {
     y += altId + 30;
 
     // ---- Dados -----------------------------------------------------
-    y = secao(ctx, y, CONFIG.tituloDados(reg.tipo));
+    y = secao(ctx, y, CONFIG.tituloDados(reg.tipo, CONFIG.categoriaFabrica(reg)));
     if (reg.tipo === 'Fábrica') {
-      y = linha(ctx, y, 'Fabricante', reg.fabricante, { negrito: true });
-      y = linha(ctx, y, 'Tipo de torre', reg.tipoTorre);
+      if (CONFIG.categoriaFabrica(reg) === 'Subestação') {
+        y = linha(ctx, y, 'Fornecedor', reg.fabricante, { negrito: true });
+        y = linha(ctx, y, 'Tipo de equipamento', reg.tipoEquipamento);
+      } else {
+        y = linha(ctx, y, 'Fabricante', reg.fabricante, { negrito: true });
+        y = linha(ctx, y, 'Tipo de torre', reg.tipoTorre);
+      }
       y = linha(ctx, y, 'Descrição da carga', reg.descricao, { max: 8 });
       y = linha(ctx, y, 'Nº da NF / Romaneio', reg.nf);
       y = linha(ctx, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
