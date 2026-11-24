@@ -1,4 +1,3 @@
 Relatório Fotográfico de Materiais | EDP Transmissão Construção
-versão publicada: 1.4.0 (Fábrica: Materiais de Linha e Materiais de Subestação — fornecedor e tipo de equipamento com opção de cadastrar novo)
+versão publicada: 1.4.1 (Fábrica: Materiais de Linha e de Subestação; arquivos versionados para ignorar cache da rede)
 atualizado em: 2026-11-24
-republicado em: 2026-11-24 14:10 (forçar atualização do GitHub Pages)

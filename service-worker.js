@@ -10,7 +10,7 @@
  * altere VERSAO abaixo — é o que dispara a limpeza dos caches antigos.
  * ===================================================================== */
 
-const VERSAO = 'v1.4.0';
+const VERSAO = 'v1.4.1';
 const CACHE = 'rf-materiais-' + VERSAO;
 const CACHE_MAPA = 'rf-materiais-mapa-v1';      // não muda com a versão: preserva as imagens
 const LIMITE_MAPA = 1500;                      // ~25 MB no máximo
@@ -137,9 +137,10 @@ self.addEventListener('fetch', (evento) => {
   if (req.mode === 'navigate') {
     evento.respondWith((async () => {
       try {
-        const rede = await fetch(req);
+        // no-store: ignora cache do navegador e de proxies da rede
+        const rede = await fetch(req.url, { cache: 'no-store', credentials: 'same-origin' });
         const cache = await caches.open(CACHE);
-        cache.put('./index.html', rede.clone());
+        if (rede && rede.ok) cache.put('./index.html', rede.clone());
         return rede;
       } catch (e) {
         const cache = await caches.open(CACHE);
@@ -182,7 +183,7 @@ self.addEventListener('fetch', (evento) => {
 let moduloEnvio = false;
 try {
   self.window = self;   // os módulos do app usam "window" como namespace
-  importScripts('./vendor/dexie.min.js', './config.js', './db.js', './auth.js', './sync.js');
+  importScripts('./vendor/dexie.min.js', './config.js?v='+VERSAO, './db.js?v='+VERSAO, './auth.js?v='+VERSAO, './sync.js?v='+VERSAO);
   moduloEnvio = true;
 } catch (e) {
   console.warn('[SW] envio em segundo plano indisponível:', e && e.message);
