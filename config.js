@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.4.1',
+    versao: '1.5.0',
     logoOficialNoPacote: true
   },
 
@@ -257,9 +257,15 @@ CONFIG.corTipo = function (tipo) {
 };
 /** Título da seção de dados conforme o tipo. */
 CONFIG.tituloDados = function (tipo, categoria) {
-  if (tipo === 'Fábrica') return 'Dados da saída da fábrica' + (categoria ? ' — Materiais de ' + categoria : '');
+  if (tipo === 'Fábrica') return 'Dados da saída da fábrica' + (categoria ? ' — ' + CONFIG.rotuloCategoria(categoria) : '');
   return tipo === 'Saída' ? 'Dados da saída' : 'Dados do recebimento';
 };
+/** Nome exibido da categoria: Linha → "Materiais LT"; Subestação → "Materiais Subestação". */
+CONFIG.rotuloCategoria = function (categoria) {
+  if (!categoria) return '';
+  return categoria === 'Subestação' ? 'Materiais Subestação' : 'Materiais LT';
+};
+
 /** Categoria da saída da fábrica (registros antigos, sem categoria, são de Linha). */
 CONFIG.categoriaFabrica = function (r) {
   return r && r.tipo === 'Fábrica' ? (r.categoriaFabrica === 'Subestação' ? 'Subestação' : 'Linha') : '';

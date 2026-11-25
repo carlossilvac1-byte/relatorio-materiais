@@ -7,9 +7,12 @@
  *  • Detalhe: mapa do local + "Abrir no Google Maps".
  *  • PDF: miniatura do mapa montada a partir das imagens do mapa.
  *
- * Duas camadas: "Mapa" (OpenStreetMap) e "Satélite" (Esri). O mapa
- * precisa de internet para as imagens; o GPS não. Sem sinal, as
- * coordenadas continuam registradas.
+ * Duas camadas: "Mapa" (OpenStreetMap) e "Satélite" (Esri).
+ * SEM INTERNET (v1.5.0): o GPS funciona normalmente; as imagens do mapa
+ * da região já vista ficam guardadas no aparelho (pré-carregadas em
+ * volta de cada posição do GPS enquanto há sinal). Onde não houver
+ * imagem guardada, o PDF recebe um mapa esquemático com o ponto e as
+ * coordenadas — a localização nunca fica de fora.
  * ===================================================================== */
 
 const MAPA = (function () {
@@ -173,7 +176,6 @@ const MAPA = (function () {
     opcoes = opcoes || {};
     const z = opcoes.zoom || 16, W = opcoes.largura || 640, H = opcoes.altura || 360;
     const camada = opcoes.satelite ? CAMADAS.satelite : CAMADAS.mapa;
-    if (!navigator.onLine) return null;
     const cx = lon2x(lng, z), cy = lat2y(lat, z);
     const x0 = cx - W / 2, y0 = cy - H / 2;
     const tx0 = Math.floor(x0 / 256), ty0 = Math.floor(y0 / 256), tx1 = Math.floor((x0 + W) / 256), ty1 = Math.floor((y0 + H) / 256);
@@ -188,15 +190,8 @@ const MAPA = (function () {
       }
     }
     const res = await Promise.all(tarefas);
-    if (res.every(r => r === null)) return null;
-    const px = W / 2, py = H / 2;
-    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(px, py + 2, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = opcoes.nc ? COR_NC : COR_OK; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(px, py);
-    ctx.bezierCurveTo(px - 4, py - 10, px - 13, py - 16, px - 13, py - 26);
-    ctx.arc(px, py - 26, 13, Math.PI, 0); ctx.bezierCurveTo(px + 13, py - 16, px + 4, py - 10, px, py);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py - 26, 5, 0, Math.PI * 2); ctx.fill();
+    if (res.every(r => r === null)) return opcoes.semInternet === false ? null : mapaEsquematico(lat, lng, W, H, opcoes);
+    desenharPino(ctx, W / 2, H / 2, opcoes.nc);
     ctx.font = '11px Arial'; const atrib = opcoes.satelite ? '© Esri' : '© OpenStreetMap';
     const lw = ctx.measureText(atrib).width + 10;
     ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillRect(W - lw, H - 16, lw, 16);
@@ -204,7 +199,68 @@ const MAPA = (function () {
     try { return canvas.toDataURL('image/jpeg', 0.85); } catch (e) { return null; }
   }
 
+  /** Mapa sem imagens (sem internet e região nunca vista): grade + ponto + coordenadas. */
+  function mapaEsquematico(lat, lng, W, H, opcoes) {
+    const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#EEF3F1'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#D3DFDB'; ctx.lineWidth = 1;
+    for (let x = (W / 2) % 40; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = (H / 2) % 40; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+    ctx.strokeStyle = '#9FB5AE'; ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = opcoes.nc ? COR_NC : COR_OK; ctx.globalAlpha = 0.35; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 34, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    desenharPino(ctx, W / 2, H / 2, opcoes.nc);
+    ctx.font = 'bold 15px Arial'; ctx.fillStyle = '#1A1F2E'; ctx.textAlign = 'center';
+    ctx.fillText(fmt(lat) + ', ' + fmt(lng), W / 2, H - 34);
+    ctx.font = '12px Arial'; ctx.fillStyle = '#5A6B78';
+    ctx.fillText('Local registrado pelo GPS (mapa sem internet)', W / 2, H - 16);
+    ctx.font = 'bold 12px Arial'; ctx.fillText('N', 16, 22);
+    ctx.beginPath(); ctx.moveTo(16, 26); ctx.lineTo(11, 38); ctx.lineTo(21, 38); ctx.closePath(); ctx.fill();
+    try { return canvas.toDataURL('image/jpeg', 0.88); } catch (e) { return null; }
+  }
+
+  function desenharPino(ctx, px, py, nc) {
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(px, py + 2, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = nc ? COR_NC : COR_OK; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(px, py);
+    ctx.bezierCurveTo(px - 4, py - 10, px - 13, py - 16, px - 13, py - 26);
+    ctx.arc(px, py - 26, 13, Math.PI, 0); ctx.bezierCurveTo(px + 13, py - 16, px + 4, py - 10, px, py);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(px, py - 26, 5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  /**
+   * Com internet, guarda no aparelho as imagens do mapa em volta da posição
+   * (zooms 15, 16 e 17) — assim o mapa e o PDF funcionam depois sem sinal.
+   */
+  const preCarregados = new Set();
+  let preCarregando = false;
+  async function preCarregar(lat, lng) {
+    if (!navigator.onLine || preCarregando || lat === null || lat === undefined) return;
+    const chave = Number(lat).toFixed(3) + ',' + Number(lng).toFixed(3);   // ~100 m
+    if (preCarregados.has(chave)) return;
+    preCarregados.add(chave);
+    preCarregando = true;
+    try {
+      const urls = [];
+      [[15, 1], [16, 2], [17, 2]].forEach(([z, r]) => {
+        const tx = Math.floor(lon2x(lng, z) / 256), ty = Math.floor(lat2y(lat, z) / 256);
+        for (let x = tx - r; x <= tx + r; x++) for (let y = ty - r; y <= ty + r; y++) {
+          urls.push(CAMADAS.mapa.url.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+        }
+      });
+      for (let i = 0; i < urls.length; i += 6) {
+        if (!navigator.onLine) break;
+        await Promise.all(urls.slice(i, i + 6).map(u => fetch(u, { mode: 'cors', credentials: 'omit' }).catch(() => null)));
+      }
+    } finally { preCarregando = false; }
+  }
+
   return {
+    preCarregar: preCarregar,
     disponivel: disponivel,
     formulario: formulario,
     seguir: seguir,

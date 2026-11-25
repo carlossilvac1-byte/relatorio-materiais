@@ -8,10 +8,10 @@
 
   <title>Relatório Fotográfico de Materiais | EDP TRANSMISSÃO CONSTRUÇÃO</title>
 
-  <link rel="manifest" href="manifest.json?v=1.4.1">
-  <link rel="stylesheet" href="leaflet.css?v=1.4.1">
-  <link rel="stylesheet" href="styles.css?v=1.4.1">
-  <link rel="stylesheet" href="materiais.css?v=1.4.1">
+  <link rel="manifest" href="manifest.json?v=1.5.0">
+  <link rel="stylesheet" href="leaflet.css?v=1.5.0">
+  <link rel="stylesheet" href="styles.css?v=1.5.0">
+  <link rel="stylesheet" href="materiais.css?v=1.5.0">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -413,8 +413,8 @@
             <div class="campo" id="campo-cat-fab">
               <span class="rotulo">Materiais <b class="obrig">*</b></span>
               <div class="radio-grande rf-cat-fab" role="radiogroup" aria-label="Categoria dos materiais">
-                <label class="opcao"><input type="radio" name="catfab" value="Linha"><span>Materiais de Linha</span></label>
-                <label class="opcao"><input type="radio" name="catfab" value="Subestação"><span>Materiais de Subestação</span></label>
+                <label class="opcao"><input type="radio" name="catfab" value="Linha"><span>Materiais LT</span></label>
+                <label class="opcao"><input type="radio" name="catfab" value="Subestação"><span>Materiais Subestação</span></label>
               </div>
               <span class="erro" id="e-cat-fab"></span>
             </div>
@@ -538,7 +538,7 @@
         </div>
         <div class="mapa-box" hidden>
           <div id="mapa-form" class="mapa"></div>
-          <div class="mapa-offline" hidden>Sem internet: o mapa aparece quando a conexão voltar. As coordenadas do GPS já ficam registradas.</div>
+          <div class="mapa-offline" hidden>Sem internet: o GPS continua funcionando e o local fica registrado. O mapa mostra as áreas já vistas neste aparelho.</div>
         </div>
       </div>
 
@@ -854,19 +854,19 @@
 </div>
 
 <!-- Bibliotecas locais (sem CDN: precisam funcionar offline) -->
-<script src="vendor/dexie.min.js?v=1.4.1"></script>
-<script src="vendor/jspdf.umd.min.js?v=1.4.1"></script>
+<script src="vendor/dexie.min.js?v=1.5.0"></script>
+<script src="vendor/jspdf.umd.min.js?v=1.5.0"></script>
 
 <!-- Camadas da aplicação -->
-<script src="config.js?v=1.4.1"></script>
-<script src="assets/logo-edp-base64.js?v=1.4.1"></script>
-<script src="db.js?v=1.4.1"></script>
-<script src="auth.js?v=1.4.1"></script>
-<script src="sync.js?v=1.4.1"></script>
-<script src="leaflet.js?v=1.4.1"></script>
-<script src="mapa.js?v=1.4.1"></script>
-<script src="pdf.js?v=1.4.1"></script>
-<script src="imagem.js?v=1.4.1"></script>
-<script src="app.js?v=1.4.1"></script>
+<script src="config.js?v=1.5.0"></script>
+<script src="assets/logo-edp-base64.js?v=1.5.0"></script>
+<script src="db.js?v=1.5.0"></script>
+<script src="auth.js?v=1.5.0"></script>
+<script src="sync.js?v=1.5.0"></script>
+<script src="leaflet.js?v=1.5.0"></script>
+<script src="mapa.js?v=1.5.0"></script>
+<script src="pdf.js?v=1.5.0"></script>
+<script src="imagem.js?v=1.5.0"></script>
+<script src="app.js?v=1.5.0"></script>
 </body>
 </html>

@@ -693,12 +693,12 @@ const APP = (function () {
     $('#rot-nf').textContent = fab ? 'Nº da NF / Romaneio' : 'NF';
     $('#f-nf').placeholder = fab ? 'Nº da nota fiscal ou do romaneio' : 'Nº da nota fiscal';
     $('#rot-canteiro').textContent = fab ? 'Canteiro destino' : 'Canteiro';
-    $('#rot-descricao').textContent = fab ? 'Descrição da carga' : 'Descrição do material';
+    $('#rot-descricao').textContent = fab ? 'Descrição' : 'Descrição do material';
     $('#f-descricao').placeholder = fab ? 'Peças, conjuntos, quantidades, volumes, amarração…' : 'Material, quantidade, unidade, volumes, estado da embalagem…';
     $('#tit-dados').textContent = tipo ? CONFIG.tituloDados(tipo) : 'Dados do material';
     $('#sub-dados').textContent = tipo === 'Recebimento' ? 'NF, fornecedor, canteiro e descrição do material'
                                 : tipo === 'Saída' ? 'NF, fornecedor, transportadora, trecho, torre e descrição'
-                                : fab ? 'Materiais de Linha ou de Subestação, carga, NF/romaneio, peso e canteiro destino'
+                                : fab ? 'Materiais LT ou Materiais Subestação, descrição, NF/romaneio, peso e canteiro destino'
                                 : 'Escolha o tipo para abrir os campos';
     $('#cartao-dados').dataset.tipo = tipo;
     if (tipo) marcarErro('campo-tipo', null);
@@ -924,7 +924,7 @@ const APP = (function () {
     if (!tipo) { marcarErro('campo-tipo', 'Escolha Recebimento, Saída ou Fábrica.'); $('#e-tipo').textContent = 'Escolha Recebimento, Saída ou Fábrica.'; erros.push('Tipo'); }
     else if (tipo === 'Fábrica') {
       const cat = categoriaFabEscolhida();
-      if (!cat) { marcarErro('campo-cat-fab', 'Escolha Materiais de Linha ou Materiais de Subestação.'); $('#e-cat-fab').textContent = 'Escolha Materiais de Linha ou Materiais de Subestação.'; erros.push('Materiais (Linha/Subestação)'); }
+      if (!cat) { marcarErro('campo-cat-fab', 'Escolha Materiais LT ou Materiais Subestação.'); $('#e-cat-fab').textContent = 'Escolha Materiais LT ou Materiais Subestação.'; erros.push('Materiais (LT/Subestação)'); }
       if (cat === 'Linha') {
         if (!$('#f-fabricante').value.trim()) { marcarErro('f-fabricante', 'Informe o fabricante.'); erros.push('Fabricante'); }
         if (!$('#f-tipo-torre').value.trim()) { marcarErro('f-tipo-torre', 'Informe o tipo de torre.'); erros.push('Tipo de torre'); }
@@ -933,7 +933,7 @@ const APP = (function () {
         if (!valorComNovo('f-se-fornecedor')) { marcarErro('f-se-fornecedor', $('#f-se-fornecedor').value === NOVO ? 'Digite o nome do novo fornecedor.' : 'Selecione o fornecedor.'); erros.push('Fornecedor'); }
         if (!valorComNovo('f-equipamento')) { marcarErro('f-equipamento', $('#f-equipamento').value === NOVO ? 'Digite o novo tipo de equipamento.' : 'Selecione o tipo de equipamento.'); erros.push('Tipo de equipamento'); }
       }
-      if ($('#f-descricao').value.trim().length < 3) { marcarErro('f-descricao', 'Descreva a carga.'); erros.push('Descrição da carga'); }
+      if ($('#f-descricao').value.trim().length < 3) { marcarErro('f-descricao', 'Preencha a descrição.'); erros.push('Descrição'); }
       if (!$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe o nº da NF ou do romaneio.'); erros.push('NF/Romaneio'); }
       const peso = lerPeso($('#f-peso').value);
       if (peso === null) { marcarErro('f-peso', 'Informe o peso da carga em kg.'); erros.push('Peso da carga'); }
@@ -1089,14 +1089,36 @@ const APP = (function () {
       estado.gps.ultima = new Date();
       mostrarGeo('vivo');
       if (estado.tela === 'tela-nova' && window.MAPA) MAPA.seguir(r.latitude, r.longitude, r.precisaoGps);
+      if (window.MAPA && MAPA.preCarregar) MAPA.preCarregar(r.latitude, r.longitude);   // mapa disponível sem internet
     }, (err) => {
       if (!estado.registro || estado.registro !== r) return;
       const motivos = { 1: 'Permissão de localização negada. Libere a localização para este app nas configurações.',
                         2: 'Localização indisponível no momento.', 3: 'O GPS está demorando para responder…' };
       if (err.code === 3 && MAPA.temCoord(r)) return;      // já tem posição: só segue tentando
+      // Sem internet / sinal fraco: usa a última posição conhecida do aparelho
+      // enquanto o GPS (que não depende de internet) termina de travar.
+      if (err.code !== 1 && !MAPA.temCoord(r)) posicaoReserva(r);
       r.obsGeo = motivos[err.code] || 'Não foi possível obter a localização.';
-      mostrarGeo(err.code === 3 ? 'buscando' : 'erro');
+      mostrarGeo(err.code === 1 ? 'erro' : 'buscando');
     }, { enableHighAccuracy: true, maximumAge: 0, timeout: CONFIG.limites.timeoutGeolocalizacaoMs * 2 });
+  }
+
+  /** Posição de reserva (precisão menor, aceita leitura recente guardada). */
+  function posicaoReserva(r) {
+    if (estado.gps.reserva) return;
+    estado.gps.reserva = true;
+    navigator.geolocation.getCurrentPosition((pos) => {
+      estado.gps.reserva = false;
+      if (!estado.registro || estado.registro !== r || r.ajusteManual || MAPA.temCoord(r)) return;
+      r.latitude = +pos.coords.latitude.toFixed(6);
+      r.longitude = +pos.coords.longitude.toFixed(6);
+      r.precisaoGps = pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null;
+      r.obsGeo = null;
+      estado.gps.ultima = new Date();
+      mostrarGeo(estado.gps.watchId !== null ? 'vivo' : 'fixo');
+      if (estado.tela === 'tela-nova' && window.MAPA) MAPA.seguir(r.latitude, r.longitude, r.precisaoGps);
+    }, () => { estado.gps.reserva = false; },
+    { enableHighAccuracy: false, maximumAge: 15 * 60 * 1000, timeout: 20000 });
   }
 
   function pararGPS() {
@@ -1356,7 +1378,7 @@ const APP = (function () {
         '</div>' +
         (r.tipo === 'Fábrica'
           ? '<div class="linha2"><b>' + escapar(r.fabricante || r.fornecedor) + '</b> — NF/Romaneio ' + escapar(r.nf) + '</div>' +
-            '<div class="linha3">' + escapar(['Materiais de ' + CONFIG.categoriaFabrica(r), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
+            '<div class="linha3">' + escapar([CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
           : '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
             '<div class="linha3">' + escapar(DB.localResumo(r)) + (r.tipo === 'Saída' && r.transportadora ? ' • ' + escapar(r.transportadora) : '') + '</div>') +
         '<div class="linha3 rf-desc">' + escapar((r.descricao || '').slice(0, 120)) + '</div>' +
@@ -1460,10 +1482,10 @@ const APP = (function () {
     ];
     if (r.tipo === 'Fábrica') {
       const se = CONFIG.categoriaFabrica(r) === 'Subestação';
-      linhas.push(['Materiais', 'Materiais de ' + CONFIG.categoriaFabrica(r)]);
+      linhas.push(['Materiais', CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r))]);
       if (se) linhas.push(['Fornecedor', r.fabricante], ['Tipo de equipamento', r.tipoEquipamento]);
       else linhas.push(['Fabricante', r.fabricante], ['Tipo de torre', r.tipoTorre]);
-      linhas.push(['Descrição da carga', r.descricao],
+      linhas.push(['Descrição', r.descricao],
                   ['NF / Romaneio', r.nf], ['Peso da carga', CONFIG.pesoFormatado(r.pesoCarga)], ['Canteiro destino', DB.nomeCanteiro(r)]);
     } else {
       linhas.push(['NF', r.nf], ['Fornecedor', r.fornecedor]);
@@ -1527,6 +1549,7 @@ const APP = (function () {
     $('#detalhe-conteudo').innerHTML = html;
     mostrarTela('tela-detalhe');
     if (window.MAPA) MAPA.detalhe(document.getElementById('mapa-detalhe'), r, nc);
+    if (window.MAPA && MAPA.preCarregar && MAPA.temCoord(r)) MAPA.preCarregar(r.latitude, r.longitude);
   }
 
   /* ===================================================================

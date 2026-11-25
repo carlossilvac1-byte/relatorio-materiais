@@ -602,7 +602,7 @@ const DB = (function () {
       const t = String(filtros.texto).toLowerCase().trim();
       lista = lista.filter(r => [
         r.numero, nomeProjeto(r), r.lote, r.tipo, r.nf, r.fornecedor, nomeCanteiro(r), r.transportadora,
-        r.trecho, r.torre, r.fabricante, r.tipoTorre, r.tipoEquipamento, CONFIG.categoriaFabrica(r) ? 'Materiais de ' + CONFIG.categoriaFabrica(r) : '', r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
+        r.trecho, r.torre, r.fabricante, r.tipoTorre, r.tipoEquipamento, CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), r.descricao, r.descricaoNC, r.observacoes, r.responsavel, r.dataRelatorio
       ].join(' ').toLowerCase().indexOf(t) !== -1);
     }
     lista.sort((a, b) => (b.dataRelatorio + b.criadoEm).localeCompare(a.dataRelatorio + a.criadoEm));
@@ -811,7 +811,7 @@ const DB = (function () {
       const nc = fotos.length ? fotos.filter(f => f.vinculo) : (r.fotosRemotas || []).filter(m => m.vinculo);
       const cols = [numeroRelatorio(r) || 'pendente', r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
         r.tipo !== 'Saída' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre,
-        CONFIG.categoriaFabrica(r) ? 'Materiais de ' + CONFIG.categoriaFabrica(r) : '', r.fabricante || '', r.tipoTorre || '', r.tipoEquipamento || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
+        CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), r.fabricante || '', r.tipoTorre || '', r.tipoEquipamento || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
         r.naoConformidade, r.descricaoNC, r.observacoes];
       for (let i = 1; i <= nFotos; i++) {
         const f = gerais.find(x => x.slot === i);

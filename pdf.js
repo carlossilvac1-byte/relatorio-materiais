@@ -7,11 +7,9 @@
  * páginas com a logo negativa à esquerda e o título à direita; rodapé
  * com identificação do documento, data/hora de emissão e "Página x de y".
  *
- * Ordem das seções:
- *   identificação (projeto, lote, data, tipo) -> dados do material ->
- *   não conformidade (descrição + fotos) -> localização (mapa) ->
- *   registro fotográfico (fotos 1 a 6, 2 por linha, com a observação)
- *   -> registro e validação.
+ * Cada relatório sai SEMPRE em UMA página A4 (v1.5.0):
+ *   identificação -> dados (esq.) | localização, NC e validação (dir.)
+ *   -> registro fotográfico em grade que se ajusta à quantidade de fotos.
  *
  * Regras de diagramação: tudo é MEDIDO antes de desenhar, com a mesma
  * fonte e estilo da escrita; nenhum título fica órfão no pé da página.
@@ -262,207 +260,282 @@ const PDFGEN = (function () {
     }
   }
 
-  /** Dados do recebimento / da saída. */
-  function blocoDados(doc, y, reg) {
-    y = secaoBloco(doc, y, CONFIG.tituloDados(reg.tipo, CONFIG.categoriaFabrica(reg)), 20);
-    y = linha(doc, y, 'Nº do relatório', DB.numeroExibicao(reg), { negrito: true });
+  /* ===============================================================
+   * RELATÓRIO EM UMA ÚNICA PÁGINA (v1.5.0)
+   * ---------------------------------------------------------------
+   *  ┌ identificação (projeto | lote | data | tipo) ───────────────┐
+   *  │ dados do registro (esq.)  │ localização + NC + validação   │
+   *  ├ registro fotográfico: grade que se ajusta à quantidade ────┤
+   *  └ (1 a N fotos ocupam sempre o espaço que sobra na página) ──┘
+   * Textos muito longos são resumidos e, em último caso, a página
+   * inteira é reduzida proporcionalmente — nunca vira 2 páginas.
+   * =============================================================== */
+  const GAP = 5;                                   // espaço entre colunas
+  const LARG_ESQ = 106;                            // coluna dos dados
+  const LARG_DIR = LARG - LARG_ESQ - GAP;          // coluna localização / validação
+  /** Altura mínima reservada às fotos: cada foto com pelo menos ~24 mm de altura. */
+  function fotoMin(n) {
+    if (!n) return 8;
+    const linhas = Math.ceil(n / Math.min(n, 6));
+    return 7 + linhas * (24 + 4.6 + 6.4 + 2) + (linhas - 1) * 2.5;
+  }
+
+  /** Título compacto de seção. */
+  function secaoC(doc, x, y, titulo, corHex, desenhar) {
+    if (desenhar) {
+      cor(doc, corHex || CONFIG.cores.cabecalho, 'preenchimento');
+      doc.rect(x, y, 2.2, 5.2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.6);
+      cor(doc, corHex || CONFIG.cores.cabecalho, 'texto');
+      doc.text(t(titulo), x + 4.2, y + 4.1);
+      texto0(doc);
+    }
+    return y + 7;
+  }
+
+  /** Linha compacta rótulo | valor (texto limitado a "max" linhas). */
+  function linhaC(doc, x, y, w, rotulo, valor, o, desenhar) {
+    o = o || {};
+    const lr = o.larguraRotulo || 27, lv = w - lr;
+    const vazio = valor === null || valor === undefined || valor === '';
+    doc.setFont('helvetica', o.negrito ? 'bold' : 'normal'); doc.setFontSize(7.9);
+    let linhas = doc.splitTextToSize(vazio ? '-' : t(valor), lv - 4);
+    if (o.max && linhas.length > o.max) {
+      linhas = linhas.slice(0, o.max);
+      linhas[o.max - 1] = String(linhas[o.max - 1]).replace(/\s*\S{0,6}$/, '') + ' (...)';
+    }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4);
+    const rot = doc.splitTextToSize(t(rotulo), lr - 4);
+    const alt = Math.max(6, Math.max(linhas.length * 3.35, rot.length * 3.1) + 2.9);
+    if (desenhar) {
+      cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.18);
+      doc.setFillColor(238, 242, 245); doc.rect(x, y, lr, alt, 'FD');
+      if (o.fundo) { cor(doc, o.fundo, 'preenchimento'); doc.rect(x + lr, y, lv, alt, 'FD'); }
+      else doc.rect(x + lr, y, lv, alt, 'D');
+      cor(doc, CONFIG.cores.azulMarinho, 'texto');
+      doc.text(rot, x + 2, y + 4.1);
+      doc.setFont('helvetica', o.negrito ? 'bold' : 'normal'); doc.setFontSize(7.9);
+      if (o.cor) cor(doc, o.cor, 'texto'); else texto0(doc);
+      doc.text(linhas, x + lr + 2, y + 4.1);
+      texto0(doc);
+    }
+    return y + alt;
+  }
+
+  /** Coluna esquerda: dados do registro. */
+  function colunaDados(doc, x, y, reg, maxTexto, desenhar) {
+    const w = LARG_ESQ;
+    const L = (rot, val, o) => { y = linhaC(doc, x, y, w, rot, val, o, desenhar); };
+    y = secaoC(doc, x, y, CONFIG.tituloDados(reg.tipo, CONFIG.categoriaFabrica(reg)), null, desenhar);
+    L('Nº do relatório', DB.numeroExibicao(reg), { negrito: true });
     if (reg.tipo === 'Fábrica') {
       if (CONFIG.categoriaFabrica(reg) === 'Subestação') {
-        y = linha(doc, y, 'Fornecedor', reg.fabricante);
-        y = linha(doc, y, 'Tipo de equipamento', reg.tipoEquipamento);
+        L('Fornecedor', reg.fabricante); L('Tipo de equipamento', reg.tipoEquipamento);
       } else {
-        y = linha(doc, y, 'Fabricante', reg.fabricante);
-        y = linha(doc, y, 'Tipo de torre', reg.tipoTorre);
+        L('Fabricante', reg.fabricante); L('Tipo de torre', reg.tipoTorre);
       }
-      y = linha(doc, y, 'Descrição da carga', reg.descricao);
-      y = linha(doc, y, 'Nº da NF / Romaneio', reg.nf);
-      y = linha(doc, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
-      y = linha(doc, y, 'Canteiro destino', DB.nomeCanteiro(reg));
-      if (reg.observacoes) y = linha(doc, y, 'Observações gerais', reg.observacoes);
-      y = linha(doc, y, 'Fiscalização', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
-      return y;
-    }
-    y = linha(doc, y, 'NF', reg.nf);
-    y = linha(doc, y, 'Fornecedor', reg.fornecedor);
-    if (reg.tipo === 'Saída') {
-      y = linha(doc, y, 'Transportadora', reg.transportadora);
-      y = linha(doc, y, 'Trecho', reg.trecho);
-      y = linha(doc, y, 'Torre', reg.torre);
+      L('Descrição', reg.descricao, { max: maxTexto });
+      L('Nº da NF / Romaneio', reg.nf);
+      L('Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
+      L('Canteiro destino', DB.nomeCanteiro(reg));
     } else {
-      y = linha(doc, y, 'Canteiro', DB.nomeCanteiro(reg));
+      L('NF', reg.nf);
+      L('Fornecedor', reg.fornecedor);
+      if (reg.tipo === 'Saída') { L('Transportadora', reg.transportadora); L('Trecho', reg.trecho); L('Torre', reg.torre); }
+      else L('Canteiro', DB.nomeCanteiro(reg));
+      L('Descrição do material', reg.descricao, { max: maxTexto });
     }
-    y = linha(doc, y, 'Descrição do material', reg.descricao);
-    if (reg.observacoes) y = linha(doc, y, 'Observações gerais', reg.observacoes);
-    y = linha(doc, y, 'Fiscalização', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
+    if (reg.observacoes) L('Observações gerais', reg.observacoes, { max: Math.max(2, Math.round(maxTexto * 0.6)) });
     return y;
   }
 
-  /** Não conformidade: situação, descrição e fotos (2 por linha). */
-  async function blocoNC(doc, y, reg, fotos) {
-    if (reg.naoConformidade !== 'Sim') {
-      y = secaoBloco(doc, y + 3, 'Não conformidade', 10);
-      return linha(doc, y, 'Houve não conformidade?', 'Não', { negrito: true, cor: CONFIG.cores.conforme, fundo: '#EAF4EB' });
+  /** Coluna direita: localização, não conformidade e validação. */
+  function colunaLateral(doc, x, y, reg, mapa, maxTexto, ctx, desenhar) {
+    const w = LARG_DIR;
+    const L = (rot, val, o) => { y = linhaC(doc, x, y, w, rot, val, Object.assign({ larguraRotulo: 22 }, o || {}), desenhar); };
+    const tem = MAPA.temCoord(reg);
+    y = secaoC(doc, x, y, 'Localização', null, desenhar);
+    L('Coordenadas (GPS)', tem
+      ? (reg.latitude + ', ' + reg.longitude + (reg.precisaoGps ? ' (±' + reg.precisaoGps + ' m)' : '') +
+         (reg.obsGeo === 'Ajustado no mapa' ? ' - ajustado no mapa' : ''))
+      : (reg.obsGeo || 'Não capturada'), { max: 3 });
+    if (mapa) {
+      const altMapa = w * mapa.altura / mapa.largura;
+      if (desenhar) {
+        doc.addImage(mapa.dataUrl, 'JPEG', x, y + 1.5, w, altMapa);
+        cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.25); doc.rect(x, y + 1.5, w, altMapa);
+      }
+      y += altMapa + 1.5;
     }
-    const fs = fotos.filter(f => f.vinculo);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
-    const linhasDesc = doc.splitTextToSize(t(reg.descricaoNC || '-'), LARG - 10);
-    const altDesc = 11 + linhasDesc.length * 4.5;
-    const colLarg = (LARG - 6) / 2, imgAlt = 56;
-    y = secaoBloco(doc, y + 3, 'Não conformidade identificada', Math.min(altDesc, 60) + (fs.length ? imgAlt + 8 : 6), CONFIG.cores.naoConforme);
-    // Caixa da descrição (quebra entre páginas se for muito longa)
-    let i = 0;
-    while (i < linhasDesc.length) {
-      const cabem = Math.max(1, Math.floor((LIMITE_INFERIOR - y - 11) / 4.5));
-      const parte = linhasDesc.slice(i, i + cabem);
-      if (parte.length < Math.min(3, linhasDesc.length - i) && y > TOPO_CONTEUDO) { doc.addPage(); y = TOPO_CONTEUDO; continue; }
-      const alt = 10 + parte.length * 4.5;
-      doc.setFillColor(253, 236, 236); cor(doc, '#F0BDBD', 'traco'); doc.setLineWidth(0.3);
-      doc.rect(M, y, LARG, alt, 'FD');
-      cor(doc, CONFIG.cores.naoConforme, 'preenchimento'); doc.rect(M, y, 1.6, alt, 'F');
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); cor(doc, CONFIG.cores.naoConforme, 'texto');
-      doc.text(i ? 'DESCRIÇÃO (CONT.)' : 'HOUVE NÃO CONFORMIDADE: SIM  -  DESCRIÇÃO', M + 5, y + 5.4);
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); texto0(doc);
-      doc.text(parte, M + 5, y + 10.6);
-      y += alt + 3;
-      i += parte.length;
-    }
-    if (!fs.length) {
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(120, 130, 140);
-      y = novaPaginaSePreciso(doc, y, 6);
-      doc.text('Sem foto da não conformidade.', M + 2, y + 2);
-      texto0(doc);
-      return y + 6;
-    }
-    for (let k = 0; k < fs.length; k += 2) {
-      // Altura da linha: maior legenda das duas fotos
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
-      const legs = [0, 1].map(j => fs[k + j] ? doc.splitTextToSize(t('Foto NC ' + (k + j + 1) + (fs[k + j].legenda ? ' - ' + fs[k + j].legenda : '')), colLarg).slice(0, 3) : []);
-      const altLeg = Math.max(legs[0].length, legs[1].length) * 3.6 + 2;
-      y = novaPaginaSePreciso(doc, y, imgAlt + altLeg + 4);
-      for (let j = 0; j < 2 && k + j < fs.length; j++) {
-        const x = M + j * (colLarg + 6);
-        await desenharFoto(doc, fs[k + j], x, y, colLarg, imgAlt, '#E08A8A');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); cor(doc, CONFIG.cores.naoConforme, 'texto');
-        doc.text(legs[j], x, y + imgAlt + 4);
+    if (tem) {
+      y += 3.6;
+      if (desenhar) {
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(11, 127, 112);
+        const rot = 'Abrir este local no Google Maps';
+        doc.text(rot, x, y);
+        ctx.link(x, y - 2.8, doc.getTextWidth(rot), 3.6, MAPA.linkGoogle(reg.latitude, reg.longitude));
         texto0(doc);
       }
-      y += imgAlt + altLeg + 4;
+      y += 1.2;
     }
-    return y;
+    // Não conformidade
+    if (reg.naoConformidade === 'Sim') {
+      y = secaoC(doc, x, y + 3, 'Não conformidade', CONFIG.cores.naoConforme, desenhar);
+      L('Houve NC?', 'SIM', { negrito: true, cor: CONFIG.cores.naoConforme, fundo: '#FDECEC' });
+      L('Descrição da NC', reg.descricaoNC, { max: Math.max(3, Math.round(maxTexto * 0.7)), fundo: '#FDF5F5' });
+    } else {
+      y = secaoC(doc, x, y + 3, 'Não conformidade', null, desenhar);
+      L('Houve NC?', 'Não', { negrito: true, cor: CONFIG.cores.conforme, fundo: '#EAF4EB' });
+    }
+    // Registro e validação
+    y = secaoC(doc, x, y + 3, 'Registro e validação', null, desenhar);
+    L('Registrado por', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel), { max: 3 });
+    L('Registrado em', dataBR(reg.criadoEm) + ((reg.versao || 1) > 1 ? ' | última edição: ' + dataBR(reg.atualizadoEm) : ''), { max: 2 });
+    if (reg.excluido) L('Excluído em', dataBR(reg.excluidoEm) + (reg.motivoExclusao ? ' - ' + reg.motivoExclusao : ''), { cor: CONFIG.cores.naoConforme, negrito: true, max: 3 });
+    // Assinatura
+    if (desenhar) {
+      const funcao = (reg.funcaoResponsavel && reg.funcaoResponsavel !== 'Outro') ? reg.funcaoResponsavel : '';
+      cor(doc, '#8A97A3', 'traco'); doc.setLineWidth(0.3);
+      doc.line(x + 4, y + 10, x + w - 4, y + 10);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); cor(doc, CONFIG.cores.azulMarinho, 'texto');
+      doc.text(doc.splitTextToSize(t(reg.responsavel || '-'), w - 8)[0], x + w / 2, y + 13.4, { align: 'center' });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.9); cor(doc, CONFIG.cores.textoApoio, 'texto');
+      doc.text(doc.splitTextToSize(t('Fiscalização EDP' + (funcao ? ' - ' + funcao : '')), w - 8)[0], x + w / 2, y + 16.6, { align: 'center' });
+      texto0(doc);
+    }
+    return y + 18;
   }
 
-  /** Localização: coordenadas, miniatura do mapa e link. */
-  async function blocoLocalizacao(doc, y, reg) {
-    const tem = MAPA.temCoord(reg);
-    let img = null;
-    if (tem) {
-      try {
-        img = await MAPA.imagemEstatica(reg.latitude, reg.longitude,
-          { zoom: 16, largura: 900, altura: 330, nc: reg.naoConformidade === 'Sim' });
-      } catch (e) { img = null; }
+  /** Escolhe colunas x linhas que deixam as fotos maiores no espaço disponível. */
+  function gradeFotos(n, alturaDisp, comLegenda) {
+    const esp = 2.5, cab = 4.6, leg = comLegenda ? 6.4 : 0;
+    let melhor = null;
+    for (let cols = 1; cols <= Math.min(n, 8); cols++) {
+      const linhas = Math.ceil(n / cols);
+      const cw = (LARG - (cols - 1) * esp) / cols;
+      const ch = (alturaDisp - (linhas - 1) * esp) / linhas;
+      const iw = cw - 2, ih = ch - cab - leg - 2;
+      if (ih < 8) continue;
+      const fw = Math.min(iw, ih * 4 / 3), fh = fw * 3 / 4;     // área útil de uma foto 4:3
+      const nota = fw * fh * (cols * linhas === n ? 1.03 : 1);  // preferir grade sem buracos
+      if (!melhor || nota > melhor.nota) {
+        // altura da imagem limitada à proporção 4:3 (sem sobra exagerada)
+        const ihFinal = Math.min(ih, iw * 0.80);
+        const cwFinal = Math.min(cw, ihFinal * 1.45 + 2);          // cartão do tamanho da foto
+        const larguraGrade = cols * cwFinal + (cols - 1) * esp;
+        melhor = { nota, cols, linhas, cw: cwFinal, ch: ihFinal + cab + leg + 2, iw, ih: ihFinal, esp, cab, leg,
+                   margem: (LARG - larguraGrade) / 2 };
+      }
     }
-    const altMapa = img ? LARG * 330 / 900 : 0;
-    y = secaoBloco(doc, y + 3, 'Localização', 9 + (img ? altMapa + 9 : 0));
-    y = linha(doc, y, 'Coordenadas (GPS)', tem
-      ? (reg.latitude + ', ' + reg.longitude + (reg.precisaoGps ? '  (±' + reg.precisaoGps + ' m)' : '') +
-         (reg.obsGeo === 'Ajustado no mapa' ? '  - ajustado no mapa' : ''))
-      : (reg.obsGeo || 'Não capturada'));
-    if (img) {
-      y = novaPaginaSePreciso(doc, y + 2, altMapa + 9);
-      doc.addImage(img, 'JPEG', M, y, LARG, altMapa);
-      cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.3); doc.rect(M, y, LARG, altMapa);
-      y += altMapa + 4;
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(11, 127, 112);
-      doc.textWithLink('Abrir este local no Google Maps', M, y + 1, { url: MAPA.linkGoogle(reg.latitude, reg.longitude) });
-      texto0(doc);
-      y += 4;
-    } else if (tem) {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(11, 127, 112);
-      y = novaPaginaSePreciso(doc, y + 1, 6);
-      doc.textWithLink('Abrir este local no Google Maps (mapa não incluído: PDF gerado sem internet)', M, y + 3,
-        { url: MAPA.linkGoogle(reg.latitude, reg.longitude) });
-      texto0(doc);
-      y += 6;
+    return melhor;
+  }
+
+  async function grade(doc, y, alturaDisp, fotos) {
+    const gerais = fotos.filter(f => !f.vinculo).sort((a, b) => (a.slot || a.ordem || 0) - (b.slot || b.ordem || 0));
+    const nc = fotos.filter(f => f.vinculo);
+    const todas = gerais.map((f, i) => ({ f, rot: 'FOTO ' + (f.slot || i + 1), nc: false }))
+      .concat(nc.map((f, i) => ({ f, rot: 'FOTO NC ' + (i + 1), nc: true })));
+    const titulo = 'Registro fotográfico (' + todas.length + (todas.length === 1 ? ' foto)' : ' fotos)');
+    y = secaoC(doc, M, y, todas.length ? titulo : 'Registro fotográfico', null, true);
+    if (!todas.length) {
+      doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(120, 130, 140);
+      doc.text('Nenhuma foto anexada.', M, y + 3); texto0(doc);
+      return y + 6;
     }
-    return y;
+    const comLeg = todas.some(o => o.f.legenda);
+    const g = gradeFotos(todas.length, alturaDisp - 7, comLeg);
+    if (!g) return y;
+    for (let i = 0; i < todas.length; i++) {
+      const o = todas[i], c = i % g.cols, l = Math.floor(i / g.cols);
+      // última linha incompleta: centraliza
+      const naLinha = Math.min(g.cols, todas.length - l * g.cols);
+      const desloc = (g.cols - naLinha) * (g.cw + g.esp) / 2;
+      const x = M + g.margem + desloc + c * (g.cw + g.esp), yy = y + l * (g.ch + g.esp);
+      const corMoldura = o.nc ? CONFIG.cores.naoConforme : CONFIG.cores.azulMarinho;
+      cor(doc, o.nc ? '#E08A8A' : CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.25);
+      doc.setFillColor(255, 255, 255); doc.rect(x, yy, g.cw, g.ch, 'FD');
+      cor(doc, corMoldura, 'preenchimento'); doc.rect(x, yy, g.cw, g.cab, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(g.cols >= 5 ? 6.4 : 7.2); doc.setTextColor(255, 255, 255);
+      doc.text(o.rot, x + 1.8, yy + 3.3);
+      await desenharFoto(doc, o.f, x + 1, yy + g.cab + 1, g.cw - 2, g.ih, o.nc ? '#E08A8A' : null);
+      if (g.leg) {
+        doc.setFont('helvetica', o.f.legenda ? 'normal' : 'italic'); doc.setFontSize(6.5);
+        if (o.f.legenda) texto0(doc); else doc.setTextColor(150, 158, 166);
+        let leg = doc.splitTextToSize(t(o.f.legenda || 'Sem observação.'), g.cw - 3);
+        if (leg.length > 2) { leg = leg.slice(0, 2); leg[1] = String(leg[1]).replace(/\s*\S{0,6}$/, '') + ' (...)'; }
+        doc.text(leg, x + 1.5, yy + g.cab + g.ih + 3.7);
+        texto0(doc);
+      }
+    }
+    return y + g.linhas * g.ch + (g.linhas - 1) * g.esp;
+  }
+
+  /** Mapa do local (com internet ou com as imagens já guardadas no aparelho). */
+  async function mapaDoLocal(reg) {
+    if (!MAPA.temCoord(reg)) return null;
+    const largura = 640, altura = 390;
+    try {
+      const dataUrl = await MAPA.imagemEstatica(reg.latitude, reg.longitude,
+        { zoom: 16, largura, altura, nc: reg.naoConformidade === 'Sim', semInternet: true });
+      return dataUrl ? { dataUrl, largura, altura } : null;
+    } catch (e) { return null; }
   }
 
   /**
-   * Registro fotográfico: fotos 1 a 6, duas por linha, cada uma com a sua
-   * observação logo abaixo (moldura do mesmo tamanho para todas).
+   * Desenha o relatório inteiro na página atual — sempre UMA página.
    */
-  async function blocoFotos(doc, y, fotos) {
-    const gerais = fotos.filter(f => !f.vinculo).sort((a, b) => (a.slot || a.ordem || 0) - (b.slot || b.ordem || 0));
-    const colLarg = (LARG - 6) / 2;
-    const imgAlt = 62;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6);
-    const obs = gerais.map(f => doc.splitTextToSize(t(f.legenda || 'Sem observação.'), colLarg - 6).slice(0, 5));
-    const altLinha = (k) => imgAlt + 13 + Math.max(obs[k] ? obs[k].length : 1, obs[k + 1] ? obs[k + 1].length : 1) * 3.9 + 4;
-    if (!gerais.length) {
-      y = secaoBloco(doc, y + 3, 'Registro fotográfico', 8);
-      doc.setFont('helvetica', 'italic'); doc.setFontSize(9); doc.setTextColor(120, 130, 140);
-      doc.text('Nenhuma foto anexada.', M, y + 3);
-      texto0(doc);
-      return y + 8;
-    }
-    y = secaoBloco(doc, y + 3, 'Registro fotográfico (' + gerais.length + (gerais.length === 1 ? ' foto)' : ' fotos)'), altLinha(0));
-    for (let k = 0; k < gerais.length; k += 2) {
-      const alt = altLinha(k);
-      y = novaPaginaSePreciso(doc, y, alt);
-      for (let j = 0; j < 2 && k + j < gerais.length; j++) {
-        const f = gerais[k + j];
-        const x = M + j * (colLarg + 6);
-        // Moldura do cartão da foto
-        cor(doc, CONFIG.cores.borda, 'traco'); doc.setLineWidth(0.3);
-        doc.setFillColor(255, 255, 255);
-        doc.rect(x, y, colLarg, alt - 3, 'FD');
-        // Número da foto
-        cor(doc, CONFIG.cores.azulMarinho, 'preenchimento');
-        doc.rect(x, y, colLarg, 6, 'F');
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
-        doc.text('FOTO ' + (f.slot || (k + j + 1)), x + 3, y + 4.2);
-        await desenharFoto(doc, f, x + 2, y + 7.5, colLarg - 4, imgAlt - 2);
-        // Observação
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7.2); cor(doc, CONFIG.cores.textoApoio, 'texto');
-        doc.text('OBSERVAÇÃO', x + 3, y + imgAlt + 9);
-        doc.setFont('helvetica', f.legenda ? 'normal' : 'italic'); doc.setFontSize(8.6);
-        if (f.legenda) texto0(doc); else doc.setTextColor(140, 150, 160);
-        doc.text(obs[k + j], x + 3, y + imgAlt + 13);
-        texto0(doc);
+  async function paginaUnica(doc, reg, fotos) {
+    const topo = TOPO_CONTEUDO, base = LIMITE_INFERIOR, disp = base - topo;
+    const mapa = await mapaDoLocal(reg);
+    const k = doc.internal.scaleFactor;
+    const links = [];
+    const medir = { link() {} };
+
+    // 1) mede o bloco de cima e resume textos longos se ele tomar o lugar das fotos
+    const temFotos = fotos.length > 0;
+    const alturaTopo = (maxT) => {
+      const yi = faixaIdentificacaoAltura(doc, reg);
+      const a = colunaDados(doc, M, topo + yi, reg, maxT, false);
+      const b = colunaLateral(doc, M + LARG_ESQ + GAP, topo + yi, reg, mapa, maxT, medir, false);
+      return Math.max(a, b) - topo;
+    };
+    const minFotos = fotoMin(fotos.length);
+    const limiteTopo = temFotos ? disp - minFotos - 4 : disp;
+    let maxT = 40, hTopo = alturaTopo(maxT);
+    while (hTopo > limiteTopo && maxT > 4) { maxT = maxT > 12 ? maxT - 4 : maxT - 1; hTopo = alturaTopo(maxT); }
+
+    // 2) se ainda não couber, reduz a página inteira (sem nunca criar 2ª página)
+    const necessario = hTopo + (temFotos ? minFotos + 4 : 8);
+    const s = necessario > disp ? disp / necessario : 1;
+    const ox = (LARG * (1 - s)) / 2;          // centraliza horizontalmente
+    const ctx = {
+      link(x, y, w, h, url) {
+        links.push({ x: M + ox + s * (x - M), y: topo + s * (y - topo), w: w * s, h: h * s, url });
       }
-      y += alt;
+    };
+    if (s < 1) {
+      doc.saveGraphicsState();
+      const H = doc.internal.pageSize.getHeight() * k;
+      doc.setCurrentTransformationMatrix(new doc.Matrix(s, 0, 0, s, (M * (1 - s) + ox) * k, (1 - s) * (H - topo * k)));
     }
-    return y;
+    const baseVirtual = topo + disp / s;
+
+    // 3) desenha
+    let y = faixaIdentificacao(doc, topo, reg);
+    const yA = colunaDados(doc, M, y, reg, maxT, true);
+    const yB = colunaLateral(doc, M + LARG_ESQ + GAP, y, reg, mapa, maxT, ctx, true);
+    y = Math.max(yA, yB) + 4;
+    await grade(doc, y, baseVirtual - y, fotos);
+
+    if (s < 1) doc.restoreGraphicsState();
+    links.forEach(l => doc.link(l.x, l.y, l.w, l.h, { url: l.url }));
   }
 
-  /** Registro e validação: quem registrou e espaço para assinaturas. */
-  function blocoValidacao(doc, y, reg) {
-    y = secaoBloco(doc, y + 3, 'Registro e validação', 36);
-    y = linha(doc, y, 'Registrado por (Fiscalização)', CONFIG.textoFiscalizacao(reg.responsavel, reg.funcaoResponsavel));
-    y = linha(doc, y, 'Registrado em', dataBR(reg.criadoEm) + ((reg.versao || 1) > 1 ? '   |   última edição: ' + dataBR(reg.atualizadoEm) : ''));
-    if (reg.excluido) y = linha(doc, y, 'Relatório excluído em', dataBR(reg.excluidoEm) + (reg.motivoExclusao ? ' - ' + reg.motivoExclusao : ''), { cor: CONFIG.cores.naoConforme, negrito: true });
-    y = novaPaginaSePreciso(doc, y + 4, 20);
-    // Assinatura da Fiscalização: nome, "Fiscalização EDP" e a função
-    const larg = (LARG - 12) / 2;
-    const funcao = (reg.funcaoResponsavel && reg.funcaoResponsavel !== 'Outro') ? reg.funcaoResponsavel : '';
-    cor(doc, '#8A97A3', 'traco'); doc.setLineWidth(0.3);
-    doc.line(M, y + 12, M + larg, y + 12);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.6); cor(doc, CONFIG.cores.azulMarinho, 'texto');
-    doc.text(t(reg.responsavel || '-'), M, y + 16.2);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); cor(doc, CONFIG.cores.textoApoio, 'texto');
-    doc.text(t('Fiscalização EDP' + (funcao ? '  -  ' + funcao : '')), M, y + 19.8);
-    texto0(doc);
-    return y + 22;
-  }
-
-  async function corpoRelatorio(doc, y, reg, fotos) {
-    y = faixaIdentificacao(doc, y, reg);
-    y = blocoDados(doc, y, reg);
-    y = await blocoNC(doc, y, reg, fotos);
-    y = await blocoLocalizacao(doc, y, reg);
-    y = await blocoFotos(doc, y, fotos);
-    y = blocoValidacao(doc, y, reg);
-    return y;
+  /** Altura da faixa de identificação (sem desenhar). */
+  function faixaIdentificacaoAltura(doc, reg) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    const linhasProj = doc.splitTextToSize(t(DB.nomeProjeto(reg) || '-'), LARG * 0.46 - 6).slice(0, 2);
+    return (linhasProj.length > 1 ? 18 : 14) + 5;
   }
 
   function baixar(doc, nomeArquivo) {
@@ -481,9 +554,9 @@ const PDFGEN = (function () {
     if (!reg) throw new Error('Relatório não encontrado.');
     const fotos = await DB.listarFotos(id);
     const doc = new jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
-    await corpoRelatorio(doc, TOPO_CONTEUDO, reg, fotos);
+    await paginaUnica(doc, reg, fotos);
     await aplicarFaixas(doc, CONFIG.app.titulo + ' - ' + reg.tipo,
-      DB.numeroExibicao(reg) + '  |  NF ' + reg.nf + '  |  ' + reg.fornecedor);
+      DB.numeroExibicao(reg) + '  |  NF ' + reg.nf + '  |  ' + ((reg.tipo === 'Fábrica' ? reg.fabricante : reg.fornecedor) || ''));
     return { doc: doc, nome: nomeArquivo(reg) };
   }
 
@@ -583,7 +656,7 @@ const PDFGEN = (function () {
       doc.addPage();
       posPaginas[i].destino = doc.internal.getCurrentPageInfo().pageNumber;
       const fotos = await DB.listarFotos(lista[i].id);
-      await corpoRelatorio(doc, TOPO_CONTEUDO, lista[i], fotos);
+      await paginaUnica(doc, lista[i], fotos);
     }
     // Número da página de cada relatório na tabela (com link interno)
     posPaginas.forEach(pp => {

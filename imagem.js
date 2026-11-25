@@ -205,7 +205,7 @@ const IMAGEM = (function () {
         y = linha(ctx, y, 'Fabricante', reg.fabricante, { negrito: true });
         y = linha(ctx, y, 'Tipo de torre', reg.tipoTorre);
       }
-      y = linha(ctx, y, 'Descrição da carga', reg.descricao, { max: 8 });
+      y = linha(ctx, y, 'Descrição', reg.descricao, { max: 8 });
       y = linha(ctx, y, 'Nº da NF / Romaneio', reg.nf);
       y = linha(ctx, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
       y = linha(ctx, y, 'Canteiro destino', DB.nomeCanteiro(reg));
