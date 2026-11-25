@@ -718,9 +718,29 @@ const APP = (function () {
     $$('.rf-cat-fab .opcao').forEach(o => o.classList.toggle('escolhida', o.querySelector('input').checked));
     $('#fab-linha').hidden = cat !== 'Linha';
     $('#fab-se').hidden = cat !== 'Subestação';
+    aplicarNA();
     if (cat) marcarErro('campo-cat-fab', null);
     if (fab) $('#tit-dados').textContent = CONFIG.tituloDados('Fábrica', cat);
   }
+  /** NA (não se aplica) em NF e Peso — só em Materiais Subestação. */
+  function naPermitido() { return tipoEscolhido() === 'Fábrica' && categoriaFabEscolhida() === 'Subestação'; }
+  function aplicarNA() {
+    const pode = naPermitido();
+    [['nf', 'NA'], ['peso', 'NA']].forEach(([c, txt]) => {
+      const chk = $('#f-' + c + '-na'), inp = $('#f-' + c);
+      $('#na-' + c + '-op').hidden = !pode;
+      if (!pode && chk.checked) { chk.checked = false; if (inp.value === txt) inp.value = ''; }
+      const na = pode && chk.checked;
+      if (na) { if (!inp.dataset.antes && inp.value !== txt) inp.dataset.antes = inp.value; inp.value = txt; marcarErro('f-' + c, null); }
+      else if (inp.classList.contains('rf-campo-na')) { inp.value = inp.dataset.antes || ''; }
+      if (!na) delete inp.dataset.antes;
+      inp.readOnly = na;
+      inp.classList.toggle('rf-campo-na', na);
+    });
+  }
+  const nfNA = () => naPermitido() && $('#f-nf-na').checked;
+  const pesoNA = () => naPermitido() && $('#f-peso-na').checked;
+
   /** Lista com as opções padrão + as já cadastradas + "Cadastrar novo". */
   function montarSelectComNovo(idSel, valores, rotuloNovo, atual) {
     const sel = $('#' + idSel);
@@ -818,8 +838,12 @@ const APP = (function () {
     $('#f-fabricante').value = catFab === 'Subestação' ? '' : (reg.fabricante || '');
     $('#f-tipo-torre').value = reg.tipoTorre || '';
     await montarListasSubestacao(catFab === 'Subestação' ? reg.fabricante : '', reg.tipoEquipamento);
-    aplicarCategoriaFabrica();
     $('#f-peso').value = (reg.pesoCarga || reg.pesoCarga === 0) ? Number(reg.pesoCarga).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) : '';
+    const ehSE = reg.tipo === 'Fábrica' && catFab === 'Subestação';
+    ['nf', 'peso'].forEach(c => { $('#f-' + c).classList.remove('rf-campo-na'); delete $('#f-' + c).dataset.antes; });
+    $('#f-nf-na').checked = ehSE && String(reg.nf || '').trim().toUpperCase() === 'NA';
+    $('#f-peso-na').checked = ehSE && !estado.ehNovo && reg.pesoCarga === null;
+    aplicarCategoriaFabrica();
     $('#f-descricao').value = reg.descricao || '';
     $('#f-observacoes').value = reg.observacoes || '';
     $$('input[name=nc]').forEach(x => { x.checked = (x.value === (reg.naoConformidade || 'Não')); });
@@ -934,9 +958,10 @@ const APP = (function () {
         if (!valorComNovo('f-equipamento')) { marcarErro('f-equipamento', $('#f-equipamento').value === NOVO ? 'Digite o novo tipo de equipamento.' : 'Selecione o tipo de equipamento.'); erros.push('Tipo de equipamento'); }
       }
       if ($('#f-descricao').value.trim().length < 3) { marcarErro('f-descricao', 'Preencha a descrição.'); erros.push('Descrição'); }
-      if (!$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe o nº da NF ou do romaneio.'); erros.push('NF/Romaneio'); }
-      const peso = lerPeso($('#f-peso').value);
-      if (peso === null) { marcarErro('f-peso', 'Informe o peso da carga em kg.'); erros.push('Peso da carga'); }
+      if (!nfNA() && !$('#f-nf').value.trim()) { marcarErro('f-nf', 'Informe o nº da NF ou do romaneio' + (naPermitido() ? ' ou marque NA.' : '.')); erros.push('NF/Romaneio'); }
+      const peso = pesoNA() ? 0 : lerPeso($('#f-peso').value);
+      if (pesoNA()) { /* não se aplica */ }
+      else if (peso === null) { marcarErro('f-peso', 'Informe o peso da carga em kg' + (naPermitido() ? ' ou marque NA.' : '.')); erros.push('Peso da carga'); }
       else if (isNaN(peso) || peso <= 0) { marcarErro('f-peso', 'Peso inválido. Use números, ex.: 18.450,5'); erros.push('Peso da carga'); }
       if (!$('#f-canteiro').value) { marcarErro('f-canteiro', 'Selecione o canteiro destino.'); erros.push('Canteiro destino'); }
       if ($('#f-canteiro').value === 'Outro' && !$('#f-canteiro-outro').value.trim()) { marcarErro('f-canteiro-outro', 'Informe o canteiro destino.'); erros.push('Canteiro destino (Outro)'); }
@@ -990,7 +1015,7 @@ const APP = (function () {
     r.lote = $('#f-lote').value;
     r.dataRelatorio = $('#f-data').value;
     r.tipo = tipoEscolhido();
-    r.nf = $('#f-nf').value.trim();
+    r.nf = nfNA() ? 'NA' : $('#f-nf').value.trim();
     r.fornecedor = $('#f-fornecedor').value.trim();
     r.canteiro = $('#f-canteiro').value;
     r.canteiroOutro = r.canteiro === 'Outro' ? $('#f-canteiro-outro').value.trim() : '';
@@ -1007,7 +1032,7 @@ const APP = (function () {
       r.tipoTorre = $('#f-tipo-torre').value.trim();
       r.tipoEquipamento = '';
     }
-    const peso = lerPeso($('#f-peso').value);
+    const peso = pesoNA() ? null : lerPeso($('#f-peso').value);
     r.pesoCarga = (peso === null || isNaN(peso)) ? null : peso;
     r.descricao = $('#f-descricao').value.trim();
     r.observacoes = $('#f-observacoes').value.trim();
@@ -1378,7 +1403,7 @@ const APP = (function () {
         '</div>' +
         (r.tipo === 'Fábrica'
           ? '<div class="linha2"><b>' + escapar(r.fabricante || r.fornecedor) + '</b> — NF/Romaneio ' + escapar(r.nf) + '</div>' +
-            '<div class="linha3">' + escapar([CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre, CONFIG.pesoFormatado(r.pesoCarga), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
+            '<div class="linha3">' + escapar([CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), CONFIG.categoriaFabrica(r) === 'Subestação' ? r.tipoEquipamento : r.tipoTorre, CONFIG.pesoExibicao(r), 'Destino: ' + DB.nomeCanteiro(r)].filter(Boolean).join(' • ')) + '</div>'
           : '<div class="linha2"><b>NF ' + escapar(r.nf) + '</b> — ' + escapar(r.fornecedor) + '</div>' +
             '<div class="linha3">' + escapar(DB.localResumo(r)) + (r.tipo === 'Saída' && r.transportadora ? ' • ' + escapar(r.transportadora) : '') + '</div>') +
         '<div class="linha3 rf-desc">' + escapar((r.descricao || '').slice(0, 120)) + '</div>' +
@@ -1486,7 +1511,7 @@ const APP = (function () {
       if (se) linhas.push(['Fornecedor', r.fabricante], ['Tipo de equipamento', r.tipoEquipamento]);
       else linhas.push(['Fabricante', r.fabricante], ['Tipo de torre', r.tipoTorre]);
       linhas.push(['Descrição', r.descricao],
-                  ['NF / Romaneio', r.nf], ['Peso da carga', CONFIG.pesoFormatado(r.pesoCarga)], ['Canteiro destino', DB.nomeCanteiro(r)]);
+                  ['NF / Romaneio', r.nf], ['Peso da carga', CONFIG.pesoExibicao(r)], ['Canteiro destino', DB.nomeCanteiro(r)]);
     } else {
       linhas.push(['NF', r.nf], ['Fornecedor', r.fornecedor]);
       if (r.tipo === 'Recebimento') linhas.push(['Canteiro', DB.nomeCanteiro(r)]);
@@ -2036,6 +2061,7 @@ const APP = (function () {
     $('#f-canteiro').addEventListener('change', () => { $('#campo-canteiro-outro').hidden = $('#f-canteiro').value !== 'Outro'; });
     $$('input[name=tipo]').forEach(r => r.addEventListener('change', aplicarTipo));
     $$('input[name=catfab]').forEach(r => r.addEventListener('change', aplicarCategoriaFabrica));
+    ['f-nf-na', 'f-peso-na'].forEach(id => $('#' + id).addEventListener('change', () => { aplicarNA(); if (!$('#' + id).checked) { const inp = $('#' + id.replace('-na', '')); try { inp.focus(); } catch (e) { /* segue */ } } }));
     ['f-se-fornecedor', 'f-equipamento'].forEach(id => $('#' + id).addEventListener('change', () => { aplicarNovo(id); marcarErro(id, null); }));
     $$('input[name=nc]').forEach(r => r.addEventListener('change', () => {
       aplicarNC();

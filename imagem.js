@@ -10,6 +10,7 @@
  *   IMAGEM.gerar(id)  -> { blob, nome, largura, altura }
  *   IMAGEM.paraPng(b) -> Blob PNG (para copiar na área de transferência)
  *   IMAGEM.paraPdf(b,w,h) -> PDF de 1 página (envio como documento, sem perda)
+ *   IMAGEM.paginaPdf(doc, r) -> página do relatório em PDF (mesmo formato; usado pelo pdf.js)
  * ===================================================================== */
 
 const IMAGEM = (function () {
@@ -205,9 +206,9 @@ const IMAGEM = (function () {
         y = linha(ctx, y, 'Fabricante', reg.fabricante, { negrito: true });
         y = linha(ctx, y, 'Tipo de torre', reg.tipoTorre);
       }
-      y = linha(ctx, y, 'Descrição', reg.descricao, { max: 8 });
+      y = linha(ctx, y, 'Descrição', reg.descricao, { max: 40 });
       y = linha(ctx, y, 'Nº da NF / Romaneio', reg.nf);
-      y = linha(ctx, y, 'Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
+      y = linha(ctx, y, 'Peso da carga', CONFIG.pesoExibicao(reg), { negrito: true });
       y = linha(ctx, y, 'Canteiro destino', DB.nomeCanteiro(reg));
     } else {
     y = linha(ctx, y, 'NF', reg.nf, { negrito: true });
@@ -218,9 +219,9 @@ const IMAGEM = (function () {
     } else {
       y = linha(ctx, y, 'Canteiro', DB.nomeCanteiro(reg));
     }
-    y = linha(ctx, y, 'Descrição do material', reg.descricao, { max: 8 });
+    y = linha(ctx, y, 'Descrição do material', reg.descricao, { max: 40 });
     }
-    if (reg.observacoes) y = linha(ctx, y, 'Observações gerais', reg.observacoes, { max: 5 });
+    if (reg.observacoes) y = linha(ctx, y, 'Observações gerais', reg.observacoes, { max: 20 });
     y += 26;
 
     // ---- Não conformidade -----------------------------------------
@@ -307,7 +308,9 @@ const IMAGEM = (function () {
         } catch (e) { /* segue sem o mapa */ }
       }
       f(ctx, 19); ctx.fillStyle = '#0B7F70';
-      ctx.fillText('Google Maps: ' + MAPA.linkGoogle(reg.latitude, reg.longitude).replace('https://', ''), M, y + 32);
+      const txtLink = 'Google Maps: ' + MAPA.linkGoogle(reg.latitude, reg.longitude).replace('https://', '');
+      ctx.fillText(txtLink, M, y + 32);
+      LINK = { x: M, y: y + 12, w: ctx.measureText(txtLink).width, h: 28, url: MAPA.linkGoogle(reg.latitude, reg.longitude) };
       y += 44;
     }
     y += 24;
@@ -316,7 +319,7 @@ const IMAGEM = (function () {
     const altRod = 96;
     ctx.fillStyle = C().azulMarinho; ctx.fillRect(0, y, W, altRod);
     f(ctx, 20); ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(quebrar(ctx, DB.numeroExibicao(reg) + '  |  NF ' + (reg.nf || '-') + '  |  ' + (reg.fornecedor || '-'), LARG - 300, 1)[0], M, y + 40);
+    ctx.fillText(quebrar(ctx, DB.numeroExibicao(reg) + '  |  NF ' + (reg.nf || '-') + '  |  ' + ((reg.tipo === 'Fábrica' ? reg.fabricante : reg.fornecedor) || '-'), LARG - 300, 1)[0], M, y + 40);
     ctx.fillStyle = '#9FB2BC';
     ctx.fillText('Emitido em ' + new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }), M, y + 72);
     ctx.textAlign = 'right'; f(ctx, 20, 'bold'); ctx.fillStyle = '#FFFFFF';
@@ -348,7 +351,10 @@ const IMAGEM = (function () {
     return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'SEM';
   }
 
+  let LINK = null;                             // área do link do Google Maps (px, escala 1)
+
   async function gerar(id) {
+    LINK = null;
     const reg = await DB.obterRelatorio(id);
     if (!reg) throw new Error('Relatório não encontrado.');
     const fotos = await DB.listarFotos(id);
@@ -362,7 +368,26 @@ const IMAGEM = (function () {
       blob = await paraBlob(canvas, 'image/jpeg', 0.95);
     } finally { CACHE = new Map(); }
     const nome = (DB.numeroRelatorio(reg) || 'RF-' + limpar(reg.lote)) + '_' + limpar(reg.tipo) + '_' + reg.dataRelatorio + '.jpg';
-    return { blob: blob, nome: nome, largura: canvas.width, altura: canvas.height };
+    return { blob: blob, nome: nome, largura: canvas.width, altura: canvas.height, larguraBase: W, link: LINK };
+  }
+
+  /**
+   * Acrescenta o relatório (mesmo formato da imagem) como UMA página do PDF.
+   * doc = null cria o documento. Devolve o doc.
+   */
+  async function paginaPdf(doc, r) {
+    const dados = new Uint8Array(await r.blob.arrayBuffer());
+    const larguraPt = 595.28;
+    const alturaPt = larguraPt * r.altura / r.largura;
+    const formato = [larguraPt, alturaPt], orient = alturaPt >= larguraPt ? 'p' : 'l';
+    if (!doc) doc = new jspdf.jsPDF({ unit: 'pt', format: formato, orientation: orient, compress: true });
+    else doc.addPage(formato, orient);
+    doc.addImage(dados, 'JPEG', 0, 0, larguraPt, alturaPt, undefined, 'NONE');
+    if (r.link) {
+      const k = larguraPt / r.larguraBase;
+      doc.link(r.link.x * k, r.link.y * k, r.link.w * k, r.link.h * k, { url: r.link.url });
+    }
+    return doc;
   }
 
   async function paraPng(blob) {
@@ -388,7 +413,7 @@ const IMAGEM = (function () {
     return doc.output('blob');
   }
 
-  return { gerar: gerar, paraPng: paraPng, paraPdf: paraPdf };
+  return { gerar: gerar, paraPng: paraPng, paraPdf: paraPdf, paginaPdf: paginaPdf };
 })();
 
 window.IMAGEM = IMAGEM;

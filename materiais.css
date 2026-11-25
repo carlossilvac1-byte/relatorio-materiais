@@ -194,3 +194,13 @@ body.modo-publico .cartao-vidro .btn-iniciar.bv-fabrica { background: linear-gra
 .rf-cat-fab .opcao { min-width: 0; text-align: center; }
 .rf-cat-fab .opcao.escolhida { border-color: var(--fabrica); background: var(--fabrica-claro); color: var(--fabrica); }
 .rf-novo { margin-top: 8px; }
+
+/* v1.5.1 — NA (não se aplica) em NF e Peso — Materiais Subestação */
+.rf-rotulo-na { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rf-rotulo-na > label:first-child { cursor: pointer; }
+.rf-na { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--borda, #D5DDE3);
+  border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; user-select: none; background: #fff; }
+.rf-na small { font-weight: 400; opacity: .75; }
+.rf-na input { width: 16px; height: 16px; margin: 0; accent-color: var(--fabrica, #5B4BA8); }
+.rf-na:has(input:checked) { border-color: var(--fabrica, #5B4BA8); background: var(--fabrica-claro, #EEEBFA); color: var(--fabrica, #5B4BA8); }
+input.rf-campo-na { background: #F3F5F7; color: #6B7884; font-weight: 700; }

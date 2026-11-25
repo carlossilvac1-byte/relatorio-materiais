@@ -97,15 +97,15 @@ const PDFGEN = (function () {
   /* ---------------------------------------------------------------
    * Faixas de identidade (aplicadas em todas as páginas no fim)
    * ------------------------------------------------------------- */
-  async function aplicarFaixas(doc, titulo, identificacao) {
+  async function aplicarFaixas(doc, titulo, identificacao, ultimaPagina, totalPaginas) {
     const lg = await logo();
-    const total = doc.internal.getNumberOfPages();
+    const total = totalPaginas || doc.internal.getNumberOfPages();
     const emissao = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     const alturaLogo = 8;
     const proporcao = (lg.largura && lg.altura) ? (lg.largura / lg.altura) : 3.3;
     const larguraLogo = alturaLogo * proporcao;
     const respiro = alturaLogo;
-    for (let p = 1; p <= total; p++) {
+    for (let p = 1; p <= (ultimaPagina || total); p++) {
       doc.setPage(p);
       cor(doc, CONFIG.cores.azulMarinho, 'preenchimento');
       doc.rect(0, 0, A4.largura, FAIXA_TOPO, 'F');
@@ -129,6 +129,18 @@ const PDFGEN = (function () {
       doc.text('Página ' + p + ' de ' + total, A4.largura - M, A4.altura - FAIXA_BASE + 8.5, { align: 'right' });
       texto0(doc);
     }
+  }
+
+  /** Faixas numa única página (página A4 de reserva no consolidado). */
+  async function faixaUmaPagina(doc, pagina, titulo, identificacao) {
+    const total = doc.internal.getNumberOfPages();
+    const original = doc.setPage.bind(doc);
+    // desenha só na página pedida reaproveitando aplicarFaixas
+    const getN = doc.internal.getNumberOfPages;
+    doc.internal.getNumberOfPages = () => 1;
+    doc.setPage = () => original(pagina);
+    try { await aplicarFaixas(doc, titulo, identificacao, 1, total); }
+    finally { doc.setPage = original; doc.internal.getNumberOfPages = getN; }
   }
 
   /* ---------------------------------------------------------------
@@ -336,7 +348,7 @@ const PDFGEN = (function () {
       }
       L('Descrição', reg.descricao, { max: maxTexto });
       L('Nº da NF / Romaneio', reg.nf);
-      L('Peso da carga', CONFIG.pesoFormatado(reg.pesoCarga), { negrito: true });
+      L('Peso da carga', CONFIG.pesoExibicao(reg), { negrito: true });
       L('Canteiro destino', DB.nomeCanteiro(reg));
     } else {
       L('NF', reg.nf);
@@ -552,6 +564,13 @@ const PDFGEN = (function () {
   async function montarIndividual(id) {
     const reg = await DB.obterRelatorio(id);
     if (!reg) throw new Error('Relatório não encontrado.');
+    // v1.5.1: PDF no MESMO formato da imagem do relatório — página única contínua
+    try {
+      const img = await IMAGEM.gerar(id);
+      return { doc: await IMAGEM.paginaPdf(null, img), nome: nomeArquivo(reg) };
+    } catch (e) {
+      console.warn('[PDF] formato imagem indisponível, usando A4:', e);
+    }
     const fotos = await DB.listarFotos(id);
     const doc = new jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
     await paginaUnica(doc, reg, fotos);
@@ -628,7 +647,7 @@ const PDFGEN = (function () {
     for (const r of lista) {
       doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8);
       const local = r.tipo === 'Saída' ? [r.trecho, r.torre ? 'Torre ' + r.torre : ''].filter(Boolean).join(' - ')
-                  : r.tipo === 'Fábrica' ? ['Destino ' + DB.nomeCanteiro(r), CONFIG.pesoFormatado(r.pesoCarga)].filter(Boolean).join(' - ')
+                  : r.tipo === 'Fábrica' ? ['Destino ' + DB.nomeCanteiro(r), CONFIG.pesoExibicao(r)].filter(Boolean).join(' - ')
                   : DB.nomeCanteiro(r);
       const valores = [DB.seqExibicao(r), dataBR(r.dataRelatorio), r.tipo, r.lote, r.nf, r.fornecedor, local,
                        r.naoConformidade === 'Sim' ? 'Sim' : 'Não', String(qtds[r.id].total), ''];
@@ -651,12 +670,21 @@ const PDFGEN = (function () {
       y += alt;
     }
 
-    // Um relatório completo por página
+    // Um relatório completo por página — mesmo formato do relatório individual (imagem)
+    const paginasResumo = doc.internal.getNumberOfPages();
+    const imagens = [];
     for (let i = 0; i < lista.length; i++) {
-      doc.addPage();
+      try { imagens.push(await IMAGEM.gerar(lista[i].id)); } catch (e) { imagens.push(null); }
+    }
+    for (let i = 0; i < lista.length; i++) {
+      if (imagens[i]) {
+        await IMAGEM.paginaPdf(doc, imagens[i]);
+      } else {
+        doc.addPage('a4', 'p');
+        await paginaUnica(doc, lista[i], await DB.listarFotos(lista[i].id));
+        imagens[i] = 'a4';
+      }
       posPaginas[i].destino = doc.internal.getCurrentPageInfo().pageNumber;
-      const fotos = await DB.listarFotos(lista[i].id);
-      await paginaUnica(doc, lista[i], fotos);
     }
     // Número da página de cada relatório na tabela (com link interno)
     posPaginas.forEach(pp => {
@@ -666,7 +694,13 @@ const PDFGEN = (function () {
       texto0(doc);
     });
 
-    await aplicarFaixas(doc, 'Relatório Fotográfico Consolidado', 'Consolidado  |  ' + (descricaoFiltro || 'todos os registros'));
+    // Faixas EDP nas páginas de resumo e nas páginas A4 de reserva (as páginas em imagem já têm as suas)
+    await aplicarFaixas(doc, 'Relatório Fotográfico Consolidado', 'Consolidado  |  ' + (descricaoFiltro || 'todos os registros'), paginasResumo);
+    for (let i = 0; i < lista.length; i++) {
+      if (imagens[i] !== 'a4') continue;
+      const pg = posPaginas[i].destino;
+      await faixaUmaPagina(doc, pg, CONFIG.app.titulo + ' - ' + lista[i].tipo, DB.numeroExibicao(lista[i]));
+    }
     return { doc: doc, nome: 'RF-Materiais_Consolidado_' + DB.hojeISO() + '.pdf' };
   }
 

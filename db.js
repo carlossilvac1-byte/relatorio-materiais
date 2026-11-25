@@ -811,7 +811,7 @@ const DB = (function () {
       const nc = fotos.length ? fotos.filter(f => f.vinculo) : (r.fotosRemotas || []).filter(m => m.vinculo);
       const cols = [numeroRelatorio(r) || 'pendente', r.tipo, r.dataRelatorio, nomeProjeto(r), r.lote, r.nf, r.fornecedor,
         r.tipo !== 'Saída' ? nomeCanteiro(r) : '', r.transportadora, r.trecho, r.torre,
-        CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), r.fabricante || '', r.tipoTorre || '', r.tipoEquipamento || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : '', r.descricao,
+        CONFIG.rotuloCategoria(CONFIG.categoriaFabrica(r)), r.fabricante || '', r.tipoTorre || '', r.tipoEquipamento || '', (r.pesoCarga || r.pesoCarga === 0) ? String(r.pesoCarga).replace('.', ',') : (CONFIG.pesoExibicao(r) === 'NA' ? 'NA' : ''), r.descricao,
         r.naoConformidade, r.descricaoNC, r.observacoes];
       for (let i = 1; i <= nFotos; i++) {
         const f = gerais.find(x => x.slot === i);

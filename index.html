@@ -8,10 +8,10 @@
 
   <title>Relatório Fotográfico de Materiais | EDP TRANSMISSÃO CONSTRUÇÃO</title>
 
-  <link rel="manifest" href="manifest.json?v=1.5.0">
-  <link rel="stylesheet" href="leaflet.css?v=1.5.0">
-  <link rel="stylesheet" href="styles.css?v=1.5.0">
-  <link rel="stylesheet" href="materiais.css?v=1.5.0">
+  <link rel="manifest" href="manifest.json?v=1.5.1">
+  <link rel="stylesheet" href="leaflet.css?v=1.5.1">
+  <link rel="stylesheet" href="styles.css?v=1.5.1">
+  <link rel="stylesheet" href="materiais.css?v=1.5.1">
 
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -397,11 +397,12 @@
         <div class="secao-cab"><span class="secao-num">2</span><div><b id="tit-dados">Dados do material</b><small id="sub-dados">Escolha o tipo para abrir os campos</small></div></div>
         <div id="dados-tipo" hidden>
           <div class="rf-duas" id="linha-nf">
-            <label class="campo">
-              <span class="rotulo"><span id="rot-nf">NF</span> <b class="obrig">*</b></span>
+            <div class="campo">
+              <span class="rotulo rf-rotulo-na"><label for="f-nf"><span id="rot-nf">NF</span> <b class="obrig">*</b></label>
+                <label class="rf-na" id="na-nf-op" hidden><input type="checkbox" id="f-nf-na"> NA <small>(não se aplica)</small></label></span>
               <input type="text" id="f-nf" inputmode="text" autocomplete="off" placeholder="Nº da nota fiscal">
               <span class="erro" id="e-nf"></span>
-            </label>
+            </div>
             <label class="campo" id="campo-fornecedor">
               <span class="rotulo">Fornecedor <b class="obrig">*</b></span>
               <input type="text" id="f-fornecedor" list="lista-fornecedores" autocomplete="off" placeholder="Razão social / nome">
@@ -446,11 +447,12 @@
             </div>
           </div>
           <div id="bloco-peso" hidden>
-            <label class="campo">
-              <span class="rotulo">Peso da carga (kg) <b class="obrig">*</b></span>
+            <div class="campo">
+              <span class="rotulo rf-rotulo-na"><label for="f-peso">Peso da carga (kg) <b class="obrig">*</b></label>
+                <label class="rf-na" id="na-peso-op" hidden><input type="checkbox" id="f-peso-na"> NA <small>(não se aplica)</small></label></span>
               <input type="text" id="f-peso" inputmode="decimal" autocomplete="off" placeholder="Ex.: 18.450,5">
               <span class="erro" id="e-peso"></span>
-            </label>
+            </div>
           </div>
 
           <div id="bloco-recebimento">
@@ -854,19 +856,19 @@
 </div>
 
 <!-- Bibliotecas locais (sem CDN: precisam funcionar offline) -->
-<script src="vendor/dexie.min.js?v=1.5.0"></script>
-<script src="vendor/jspdf.umd.min.js?v=1.5.0"></script>
+<script src="vendor/dexie.min.js?v=1.5.1"></script>
+<script src="vendor/jspdf.umd.min.js?v=1.5.1"></script>
 
 <!-- Camadas da aplicação -->
-<script src="config.js?v=1.5.0"></script>
-<script src="assets/logo-edp-base64.js?v=1.5.0"></script>
-<script src="db.js?v=1.5.0"></script>
-<script src="auth.js?v=1.5.0"></script>
-<script src="sync.js?v=1.5.0"></script>
-<script src="leaflet.js?v=1.5.0"></script>
-<script src="mapa.js?v=1.5.0"></script>
-<script src="pdf.js?v=1.5.0"></script>
-<script src="imagem.js?v=1.5.0"></script>
-<script src="app.js?v=1.5.0"></script>
+<script src="config.js?v=1.5.1"></script>
+<script src="assets/logo-edp-base64.js?v=1.5.1"></script>
+<script src="db.js?v=1.5.1"></script>
+<script src="auth.js?v=1.5.1"></script>
+<script src="sync.js?v=1.5.1"></script>
+<script src="leaflet.js?v=1.5.1"></script>
+<script src="mapa.js?v=1.5.1"></script>
+<script src="pdf.js?v=1.5.1"></script>
+<script src="imagem.js?v=1.5.1"></script>
+<script src="app.js?v=1.5.1"></script>
 </body>
 </html>

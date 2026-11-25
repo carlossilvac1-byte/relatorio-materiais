@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.5.0',
+    versao: '1.5.1',
     logoOficialNoPacote: true
   },
 
@@ -271,6 +271,14 @@ CONFIG.categoriaFabrica = function (r) {
   return r && r.tipo === 'Fábrica' ? (r.categoriaFabrica === 'Subestação' ? 'Subestação' : 'Linha') : '';
 };
 /** Peso em kg, no formato brasileiro (ex.: 18.450,5 kg). */
+/** Peso para exibir: em Materiais Subestação, peso vazio = "NA" (não se aplica). */
+CONFIG.pesoExibicao = function (r) {
+  if (!r) return '';
+  const p = CONFIG.pesoFormatado(r.pesoCarga);
+  if (p) return p;
+  return (r.tipo === 'Fábrica' && CONFIG.categoriaFabrica(r) === 'Subestação') ? 'NA' : '';
+};
+
 CONFIG.pesoFormatado = function (kg) {
   if (kg === null || kg === undefined || kg === '' || isNaN(Number(kg))) return '';
   return Number(kg).toLocaleString('pt-BR', { maximumFractionDigits: 3 }) + ' kg';
