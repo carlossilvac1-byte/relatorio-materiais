@@ -23,7 +23,7 @@ const CONFIG = {
     titulo: 'Relatório Fotográfico de Materiais',
     obra: 'EDP TRANSMISSÃO CONSTRUÇÃO',
     empresa: 'EDP TRANSMISSÃO CONSTRUÇÃO',
-    versao: '1.5.1',
+    versao: '1.6.0',
     logoOficialNoPacote: true
   },
 
@@ -233,9 +233,17 @@ CONFIG.siglaProjeto = function (nome) {
 };
 
 /** Número do relatório: RF-<SIGLA>-001. */
-CONFIG.numeroFormatado = function (projeto, seq) {
+/**
+ * Série de numeração: Materiais Subestação tem sequência própria ('SE'),
+ * separada dos Materiais LT e dos demais tipos ('').
+ */
+CONFIG.serieNumeracao = function (r) {
+  return r && r.tipo === 'Fábrica' && r.categoriaFabrica === 'Subestação' ? 'SE' : '';
+};
+
+CONFIG.numeroFormatado = function (projeto, seq, serie) {
   if (!seq) return '';
-  return 'RF-' + CONFIG.siglaProjeto(projeto) + '-' + String(seq).padStart(3, '0');
+  return 'RF-' + CONFIG.siglaProjeto(projeto) + (serie ? '-' + serie : '') + '-' + String(seq).padStart(3, '0');
 };
 
 /** Quem registra é sempre a Fiscalização: "Nome - Função" (função omitida se vazia/"Outro"). */

@@ -1,3 +1,3 @@
 Relatório Fotográfico de Materiais | EDP Transmissão Construção
-versão publicada: 1.5.1 (Materiais Subestação: opção NA em Nº da NF/Romaneio e Peso da carga)
-atualizado em: 2026-11-24
+versão publicada: 1.6.0 (Materiais Subestação com numeração própria: RF-<SIGLA>-SE-001)
+atualizado em: 2026-11-26

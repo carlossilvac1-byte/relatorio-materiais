@@ -156,8 +156,9 @@ const SYNC = (function () {
     }
     if (!r.ok) {
       const t = await r.text().catch(() => '');
-      if (r.status === 409 || /23505|duplicate key|ux_relatorios_projeto_seq/i.test(t)) {
+      if (r.status === 409 || /23505|duplicate key|ux_relatorios_projeto_(serie_)?seq/i.test(t)) {
         throw new Error('O Nº ' + String(reg.seqManual || '').padStart(3, '0') + ' já existe no projeto ' + DB.nomeProjeto(reg) +
+                        (CONFIG.serieNumeracao(reg) ? ' (Materiais Subestação)' : '') +
                         '. Abra o relatório, corrija o "Nº do registro" e salve de novo.');
       }
       if (r.status === 401) throw new Error('SESSAO_EXPIRADA');

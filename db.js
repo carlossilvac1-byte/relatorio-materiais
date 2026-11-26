@@ -308,7 +308,7 @@ const DB = (function () {
   function numeroRelatorio(r) {
     if (!r) return '';
     if (r.numero && /^RF-/.test(r.numero)) return r.numero;
-    return CONFIG.numeroFormatado(nomeProjeto(r), r.seq);
+    return CONFIG.numeroFormatado(nomeProjeto(r), r.seq, CONFIG.serieNumeracao(r));
   }
   /** Texto para telas e PDF (com aviso quando ainda não foi numerado). */
   function numeroExibicao(r) {
@@ -319,10 +319,10 @@ const DB = (function () {
     return r && r.seq ? String(r.seq).padStart(3, '0') : '—';
   }
 
-  /** Próximo número no modo local (sem base central): maior do projeto + 1. */
-  async function proximoSeqLocal(projeto, ignorarId) {
+  /** Próximo número no modo local (sem base central): maior do projeto (na mesma série) + 1. */
+  async function proximoSeqLocal(projeto, ignorarId, serie) {
     const lista = await db.relatorios.toArray();
-    return lista.filter(r => r.id !== ignorarId && nomeProjeto(r) === projeto && r.seq)
+    return lista.filter(r => r.id !== ignorarId && nomeProjeto(r) === projeto && r.seq && CONFIG.serieNumeracao(r) === (serie || ''))
       .reduce((m, r) => Math.max(m, r.seq), 0) + 1;
   }
 
@@ -331,7 +331,7 @@ const DB = (function () {
     if (!seq) return;
     const r = await db.relatorios.get(id);
     if (!r) return;
-    await db.relatorios.update(id, { seq: seq, numero: numero || CONFIG.numeroFormatado(nomeProjeto(r), seq) });
+    await db.relatorios.update(id, { seq: seq, numero: numero || CONFIG.numeroFormatado(nomeProjeto(r), seq, CONFIG.serieNumeracao(r)) });
   }
 
   /** Modelo em branco já vinculado ao usuário logado. */
@@ -405,11 +405,12 @@ const DB = (function () {
     if (registro.naoConformidade !== 'Sim') registro.descricaoNC = '';
     // Numeração por projeto: trocou de projeto, ganha número novo no novo projeto.
     if (registro.seqManual) registro.seq = registro.seqManual;          // nº informado pela Fiscalização
-    else if (anterior && nomeProjeto(anterior) !== nomeProjeto(registro)) { registro.seq = null; registro.numero = ''; }
+    else if (anterior && (nomeProjeto(anterior) !== nomeProjeto(registro) ||
+             CONFIG.serieNumeracao(anterior) !== CONFIG.serieNumeracao(registro))) { registro.seq = null; registro.numero = ''; }   // trocou de projeto ou LT <-> Subestação
     if (!registro.seq && window.AUTH && AUTH.modoLocal && AUTH.modoLocal()) {
-      registro.seq = await proximoSeqLocal(nomeProjeto(registro), registro.id);
+      registro.seq = await proximoSeqLocal(nomeProjeto(registro), registro.id, CONFIG.serieNumeracao(registro));
     }
-    registro.numero = registro.seq ? CONFIG.numeroFormatado(nomeProjeto(registro), registro.seq) : '';
+    registro.numero = registro.seq ? CONFIG.numeroFormatado(nomeProjeto(registro), registro.seq, CONFIG.serieNumeracao(registro)) : '';
     registro.atualizadoEm = agora();
     registro.excluido = registro.excluido ? 1 : 0;
     registro.status = 'pendente';
@@ -452,7 +453,7 @@ const DB = (function () {
         local.origem !== 'servidor') {
       // É o nosso próprio envio voltando: registra fotos e o número da base.
       local.fotosRemotas = l.fotos || local.fotosRemotas || [];
-      if (l.seq) { local.seq = l.seq; local.numero = l.numero || CONFIG.numeroFormatado(nomeProjeto(local), l.seq); local.seqManual = l.seq_manual ? l.seq : null; }
+      if (l.seq) { local.seq = l.seq; local.numero = l.numero || CONFIG.numeroFormatado(nomeProjeto(local), l.seq, CONFIG.serieNumeracao(local)); local.seqManual = l.seq_manual ? l.seq : null; }
       await db.relatorios.put(local);
       return false;
     }

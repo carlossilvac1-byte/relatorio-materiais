@@ -719,6 +719,7 @@ const APP = (function () {
     $('#fab-linha').hidden = cat !== 'Linha';
     $('#fab-se').hidden = cat !== 'Subestação';
     aplicarNA();
+    atualizarNumero();                                   // Subestação tem numeração própria (RF-…-SE-001)
     if (cat) marcarErro('campo-cat-fab', null);
     if (fab) $('#tit-dados').textContent = CONFIG.tituloDados('Fábrica', cat);
   }
@@ -787,15 +788,16 @@ const APP = (function () {
     const r = estado.registro;
     if (!r) return;
     const proj = $('#f-projeto').value;
-    const mesmoProjeto = proj && proj === DB.nomeProjeto(r);
+    const serie = (tipoEscolhido() === 'Fábrica' && categoriaFabEscolhida() === 'Subestação') ? 'SE' : '';
+    const mesmoProjeto = proj && proj === DB.nomeProjeto(r) && serie === CONFIG.serieNumeracao(r);
     const el = $('#txt-numero');
-    $('#f-seq-prefixo').textContent = 'RF-' + (proj ? CONFIG.siglaProjeto(proj) : '…') + '-';
+    $('#f-seq-prefixo').textContent = 'RF-' + (proj ? CONFIG.siglaProjeto(proj) : '…') + '-' + (serie ? serie + '-' : '');
     $('#f-seq').placeholder = (r.seq && mesmoProjeto && !r.seqManual) ? 'automático (atual ' + DB.seqExibicao(r) + ')' : 'automático';
     const digitado = $('#f-seq').value.trim();
-    if (digitado && /^\d+$/.test(digitado) && proj) { el.textContent = 'Nº ' + String(Number(digitado)).padStart(3, '0') + ' · ' + CONFIG.numeroFormatado(proj, Number(digitado)); return; }
+    if (digitado && /^\d+$/.test(digitado) && proj) { el.textContent = 'Nº ' + String(Number(digitado)).padStart(3, '0') + ' · ' + CONFIG.numeroFormatado(proj, Number(digitado), serie); return; }
     if (r.seq && mesmoProjeto) { el.textContent = 'Nº ' + DB.seqExibicao(r) + ' · ' + DB.numeroRelatorio(r); return; }
     if (!proj) { el.textContent = ''; return; }
-    el.textContent = AUTH.modoLocal() ? 'Nº definido ao salvar' : 'Nº definido no envio (RF-' + CONFIG.siglaProjeto(proj) + '-…)';
+    el.textContent = AUTH.modoLocal() ? 'Nº definido ao salvar' : 'Nº definido no envio (RF-' + CONFIG.siglaProjeto(proj) + (serie ? '-' + serie : '') + '-…)';
   }
 
   async function atualizarSugestoes() {
@@ -995,7 +997,8 @@ const APP = (function () {
     if (!txt || !/^\d+$/.test(txt) || !proj || !estado.registro) return null;
     const n = Number(txt);
     const lista = await DB.listarRelatorios({ projeto: proj, incluirExcluidos: false });
-    const outro = lista.find(x => x.id !== estado.registro.id && x.seq === n);
+    const serie = (tipoEscolhido() === 'Fábrica' && categoriaFabEscolhida() === 'Subestação') ? 'SE' : '';
+    const outro = lista.find(x => x.id !== estado.registro.id && x.seq === n && CONFIG.serieNumeracao(x) === serie);
     return outro ? ('NF ' + (outro.nf || '-') + ' de ' + dataBR(outro.dataRelatorio)) : null;
   }
 
